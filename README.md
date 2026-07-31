@@ -81,7 +81,6 @@ Claude sessions live under `~/.claude/projects/<slug>/*.jsonl` (or `$CLAUDE_CONF
 
 | Doc | Role |
 |-----|------|
-| [总纲领.md](./总纲领.md) | Goals / index |
 | [workflow.md](./workflow.md) | Process authority |
 | [compact-summary.md](./compact-summary.md) | Session progress |
 | [d/constraints.md](./d/constraints.md) | Boundaries |
