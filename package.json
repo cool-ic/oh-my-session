@@ -1,0 +1,33 @@
+{
+  "name": "agent-session-history",
+  "version": "0.1.0",
+  "description": "List local agent sessions (Grok Build, Qoder, Claude Code, …) with age, message count, and path health",
+  "type": "module",
+  "bin": {
+    "agent-session-history": "./dist/index.js",
+    "ash": "./dist/index.js"
+  },
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "build": "tsc",
+    "list": "tsx src/index.ts --list",
+    "list:json": "tsx src/index.ts --json"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "agent",
+    "session",
+    "tui",
+    "grok",
+    "qoder",
+    "claude"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
+  }
+}

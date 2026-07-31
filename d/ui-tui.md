@@ -1,0 +1,211 @@
+# ui-tui.md · 交互界面规格
+
+> 实现：`src/tui/rawApp.ts` + `src/tui/theme.ts`。  
+> 改 TUI 布局/列宽/术语前必读；改完后跑 Phase D 门禁。
+
+---
+
+## 1. 产品问题（用户心智）
+
+界面必须直接回答：
+
+1. **有哪些会话**（来源、多久前、是否值得续）  
+2. **要去哪里续跑**（续跑目录原文；没了也要显示）  
+3. **复制什么命令**（按来源区分路径是否硬绑定）
+
+---
+
+## 2. 架构红线
+
+- **差分绘制**：滚动时最多重画 2 行列表 + 详情区；禁止 Ink 式整帧 `eraseLines`。  
+- **CJK 对齐**：列宽一律用 `lib/width.ts` 的显示列（中文=2），禁止按 `string.length` 补空格。  
+- **备用屏**：`?1049h` 进入 / 退出还原。  
+- **只读**：`r` 只展示命令字符串，不 spawn 交互 resume（除非 Phase E 明确改）。
+
+---
+
+## 3. 布局
+
+### 3.1 宽屏（`cols >= 100`）— 左右分栏
+
+**默认不显示**统计/筛选墙文（用户要求去掉无区分度的大段字）。  
+仅当 `/` 搜索、或 `h`/`s` 非默认筛选、或 `r` 有命令时，才出现 **1 行**瞬时 chrome。
+
+```
+脑门  agent-session-history  · 快捷键  ·  1/84
+════════════════════════════════╤════════════════  ← 脑门/表格（双线）
+  状态 来源 多久 条数 标题 目录 │ 详情
+────────────────────────────────┼────────────────  ← 表头/数据
+  行…（选中暖色底）             │ 要去这里续跑
+  …                             │ 复制运行
+────────────────────────────────┴────────────────  ← 表格/底栏
+  底栏状态（搜索/dd/y 时）
+```
+
+分割线：`═` 脑门下；`─` 表头下、底栏上；竖线 `│` + 接头 `╤┼┴` 做左右分栏。
+
+几何约束（显示列）：
+
+```
+listW + 1(gutter) + detailW = cols
+detailW ∈ [36, 44] 优先约 0.34*cols
+listW >= LC_FIXED + 16
+gutter 列画 │；表头行接缝用 ┬
+```
+
+### 3.2 窄屏 — 上下叠放
+
+列表在上 → 详情卡片在下（同一套列表列规则）。
+
+---
+
+## 4. 列表表格列（固定）
+
+信息尽量进表格，详情补命令与说明。
+
+| 列 | 显示宽 | 内容 |
+|----|--------|------|
+| mark | 2 | 光标 `▌`；片选 `*`（光标+片选=`▌*`）；片选非光标行用 multi 底色 |
+| 状态 | 8 | 色块：`可续跑` / `空会话` / `目录没了` |
+| 来源 | 6 | `Grok` / `Qoder` / … |
+| 多久 | 5 | 右对齐：`2s` `30m` `5d` `1mo` |
+| 条数 | 5 | 右对齐 messageCount |
+| 标题 | flex ~52% | 会话标题 |
+| 续跑目录 | flex ~48% | `cwd` 原文；失效前缀 `✗` |
+
+**排序：** `lastActive` 降序。  
+
+**脑门（row 1）视觉层次（高 → 低）：**
+
+1. **Name mark** — `▌` + 填充 pill（`brandNameBg/Fg`）  
+2. **Section tags** — 更暗 chip（`brandTagBg/Fg`）：` move ` ` row ` ` bulk ` …  
+3. **Keys** — 亮琥珀（`brandKey`）  
+4. **Hints** — 最淡（`brandHint`）：`select` `rename` …  
+5. 组间宽松 `  ·  `（`brandSep`），不用厚重 `│`  
+
+```
+▌agent-session-history  ·  [ move ] ↑↓  ·  [ row ] Space select · i rename · dd delete  ·  …     [1/N] [sel] [del] ↻8s
+```
+
+- **`y` = copy resume command**；**`/` = search filter**  
+- 右侧计数 pill + **`↻8s`** = 自动刷新间隔  
+- 窄终端自动降级  
+
+**自动刷新：** 每 8s `reload()` 重扫盘；rename / `:` / `/` 输入中跳过；按 `source:id` 保光标与片选。
+
+---
+
+## 5. 详情面板（只补表格没有的）
+
+**原则：与表格零重复；不向用户讲课。** 表格已有 STATUS / SOURCE / AGE / MSGS / TITLE / RESUME DIR。
+
+| 区块 | 文案 |
+|------|------|
+| **ID** | 完整 session id |
+| **Resume command (y copy)** | `resumeInfo().command`（可折行；`y` = copy resume command） |
+
+**禁止**详情里写 Note / 路径语义说教（如 “must cd here first”）——命令本身已含 `cd`（Qoder）或仅需 ID（Grok/Claude）。  
+也不展示 Store / Created / Branch 等噪声字段。
+
+框线：`┌─ 详情 ─┐` / `│` / `└─┘`。Rename（`i`）只在表格 TITLE 列。
+
+---
+
+## 6. 术语（与代码 health 映射）
+
+| UI | `health` | 条件 |
+|----|----------|------|
+| 可续跑 | `ok` | 有消息且续跑目录存在（store 也在） |
+| 空会话 | `empty` | `messageCount <= 0`（且非 missing） |
+| 目录没了 | `missing` | 续跑目录或会话存储路径本机不存在；**优先于 empty** |
+
+「续跑目录」≠ 本工具进程 cwd；见 `d/session-stores.md`。
+
+---
+
+## 7. Resume 命令展示
+
+由 `lib/format.ts` → `resumeInfo()`：
+
+| source | command | pathMode |
+|--------|---------|----------|
+| qoder | `cd <dir> && qodercli -r <id>` | **required** |
+| grok | `grok --resume <id>` | recommended（ID 全局；标题/-c 认当前目录） |
+| claude | 建议 `cd && claude --resume` | recommended |
+
+`r` 键：把 command 写到搜索行状态区（不写 stderr，避免刷屏）。
+
+---
+
+## 8. 快捷键（vim 风格）
+
+| 键 | 作用 |
+|----|------|
+| `↑↓` | 下 / 上 |
+| `gg` / `G` | 列表首 / 末 |
+| `ctrl-f` / `ctrl-b` · `PgDn`/`PgUp` | 整页下 / 上 |
+| `H` / `M` / `L` | 屏首 / 中 / 末 行 |
+| `z` | 将当前行滚到视口中部（近似 zz） |
+| **`Space`** | **片选**：切换当前行 multi-select（行首 `*`；脑门 `sel:N`） |
+| **`i`** | **Rename**：TITLE 内联编辑（vim insert）；**Esc** / **Enter** 退出并保留内容写盘 |
+| `dd` | **标记删除**：有片选则对**全部选中项**；否则当前行（无确认；从列表消失） |
+| `u` | 撤销最近一次删除标记（恢复列表；多次 `dd` 可逐条 undo） |
+| `y` / `yy` / `r` | **copy resume command**（底栏显示；不执行） |
+| `/` | **vim 搜索**：底栏 `/pattern`；实时过滤；**Enter** 确认；**Esc** 取消并恢复；**BS 在空 pattern 上退出**（`/` 本身不可“删除”，它是提示符不是缓冲字符） |
+| `s` / `Tab` | 来源筛选 |
+| `h` | 状态筛选 |
+| `c` | 清除搜索/筛选 **并清空片选** |
+| Esc | 有片选时清空片选；否则提示 `:q` / `:wq` |
+| `:` … Enter | **Ex 命令行**（见下表） |
+| bare `q` / Ctrl-C | **不退出**（提示用 `:q` / `:wq`） |
+
+### 8.1 Ex 命令（`:` 后输入，Enter 执行；Esc 取消）
+
+| 命令 | 别名 | 作用 |
+|------|------|------|
+| `:empty` | `:emp` · `:sel empty` · `:sel e` | 片选全部 **Empty** |
+| `:missing` | `:mis` · `:sel missing` · `:sel m` | 片选全部 **Missing** |
+| `:bad` | `:broken` · `:unhealthy` · `:sel bad` · `:sel !` | 片选全部非 ok |
+| `:sel none` | `:sel clear` · `:selc` | 清空片选 |
+| `:q` | `:quit` | **无待删标记时退出**（无修改即可走） |
+| `:q!` | — | 丢弃全部 `dd` 标记后强制退出（不删盘） |
+| `:wq` | `:x` | 应用全部 `dd` 删除并退出 |
+| `:help` | `:h` · `:?` | 底栏列出可用命令 |
+
+**片选语义：** `Space` 只切换勾选，不删。勾选集合跨筛选保留（按 `source:id`）；`dd` 对勾选集合批量标记删除后清空勾选。
+
+**批量片选（:empty / :missing / :bad）：** 在「来源筛选 + 搜索」范围内匹配（**忽略**当前 health 筛选）；与已有片选**并集**；已 `dd` 待删项不参与。
+
+注意：列表展示的 `health` 互斥（missing 优先于 empty），但批量片选按**独立属性**：
+- `:empty` → `messageCount<=0` / `isEmpty`（**含**既空又 missing 的会话）
+- `:missing` → 路径失效（**含** dual）
+- `:bad` → 空或失效
+
+**删除语义：** `dd` 只标记；`:wq` 调用 `lib/delete-session.ts` 删 Grok 会话目录 / Qoder jsonl+meta+dir 等。详见 constraints。
+
+**Rename 语义（`i`）：** 立即写盘，不经过 `:wq`。**输入发生在 TITLE 单元格**，底栏只提示 `Enter save · Esc cancel`。
+
+| source | 写哪里 |
+|--------|--------|
+| grok | `summary.json` 的 `generated_title` + `session_summary` |
+| claude | 向 `.jsonl` 追加 `{"type":"custom-title","customTitle":…}` |
+| qoder | upsert `<id>-session.json` 的 `title` |
+
+编辑中：该行用 `editBg` 高亮；TITLE 显示 `buffer + ▌`（过长时右对齐保光标）。  
+- **Esc** / **Enter**：离开 insert，**保留内容**并写盘（vim 习惯：Esc 退出插入，不是撤销）。  
+- 空标题退出：保持原标题。  
+- Ctrl-U：清空输入缓冲。
+
+---
+
+## 9. 主题
+
+`theme.ts`：暖色低饱和；状态用 `pill.*` 背景色块。  
+改色只动 theme，不硬编码到多处（尽量）。
+
+---
+
+## 10. 截图 / 验收
+
+- 人工：`npm start`，宽终端看分栏对齐。  
+- 可选：`scripts/ansi_to_png.py` + tmux capture（系统无 CJK 字体时汉字会糊）。  
