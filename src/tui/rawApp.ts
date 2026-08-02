@@ -31,7 +31,6 @@ import {
 } from "../lib/tag-store.js";
 import {
   readTranscript,
-  roleLabel,
   type TranscriptTurn,
 } from "../lib/transcript.js";
 import { sortKeyLastActive } from "../lib/time.js";
@@ -1083,35 +1082,143 @@ export async function runRawTui(
     return out;
   }
 
-  /** Build chat display lines (newest first). */
+  /** Short clock for chat bubble headers (local HH:MM). */
+  function chatTimeLabel(at?: string | null): string {
+    if (!at) return "";
+    const d = new Date(at);
+    if (Number.isNaN(d.getTime())) return "";
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mm = String(d.getMinutes()).padStart(2, "0");
+    return `${hh}:${mm}`;
+  }
+
+  type ChatStyle = {
+    badgeFg: string;
+    badgeBg: string;
+    rail: string;
+    bodyBg: string;
+    text: string;
+    icon: string;
+    title: string;
+  };
+
+  function chatStyleFor(role: string): ChatStyle {
+    const c = theme.chat;
+    switch (role) {
+      case "user":
+        return {
+          badgeFg: c.userBadgeFg,
+          badgeBg: c.userBadgeBg,
+          rail: c.userRail,
+          bodyBg: c.userBodyBg,
+          text: c.userText,
+          icon: "◎",
+          title: "YOU",
+        };
+      case "tool":
+        return {
+          badgeFg: c.toolBadgeFg,
+          badgeBg: c.toolBadgeBg,
+          rail: c.toolRail,
+          bodyBg: c.toolBodyBg,
+          text: c.toolText,
+          icon: "⚙",
+          title: "TOOL",
+        };
+      case "thought":
+        return {
+          badgeFg: c.thinkBadgeFg,
+          badgeBg: c.thinkBadgeBg,
+          rail: c.thinkRail,
+          bodyBg: c.thinkBodyBg,
+          text: c.thinkText,
+          icon: "…",
+          title: "THINK",
+        };
+      default:
+        return {
+          badgeFg: c.agentBadgeFg,
+          badgeBg: c.agentBadgeBg,
+          rail: c.agentRail,
+          bodyBg: c.agentBodyBg,
+          text: c.agentText,
+          icon: "⚡",
+          title: "AGENT",
+        };
+    }
+  }
+
+  /** Full-width cell on custom bg (bubble body / header bar). */
+  function cellLine(fgHex: string, bgHex: string, plain: string, w: number): string {
+    return fgBg(fgHex, bgHex, padEndWidth(truncateWidth(plain, w), w));
+  }
+
+  /**
+   * Build chat display lines (newest first).
+   * Bubble layout: badge chip + soft body + left rail (not plain "You:"/"Agent:").
+   */
   function rebuildChatLines(innerW: number): void {
     const lines: string[] = [];
+    const w = Math.max(12, innerW);
+
     if (chatTurns.length === 0) {
-      lines.push(fg(theme.dim, "(no messages)"));
+      lines.push(
+        cellLine(
+          theme.dim,
+          theme.chat.headerBg,
+          "  ·  no messages in this session",
+          w,
+        ),
+      );
       chatLines = lines;
       return;
     }
-    lines.push(
-      fg(
-        theme.dim,
-        padEndWidth(`Chat · ${chatTurns.length} turns · near→far`, innerW),
-      ),
-    );
-    lines.push(fg(theme.line, "─".repeat(Math.min(innerW, 24))));
+
+    // ── header strip ──
+    const head = ` ◈  CHAT  ·  ${chatTurns.length} turns  ·  near→far `;
+    lines.push(cellLine(theme.chat.headerFg, theme.chat.headerBg, head, w));
+    lines.push(cellLine(theme.chat.frame, theme.canvas, "─".repeat(w), w));
+
     for (const turn of chatTurns) {
-      const label = roleLabel(turn.role);
-      const color =
-        turn.role === "user"
-          ? theme.accent
-          : turn.role === "assistant"
-            ? theme.title
-            : theme.dim;
-      lines.push(fg(color, padEndWidth(`▸ ${label}`, innerW)));
-      for (const wl of wrapPlain(turn.text, Math.max(4, innerW - 1))) {
-        lines.push(fg(theme.text, padEndWidth(wl, innerW)));
+      const st = chatStyleFor(turn.role);
+      const time = chatTimeLabel(turn.at);
+      const badgeText = ` ${st.icon} ${st.title} `;
+      const badge = fgBg(st.badgeFg, st.badgeBg, badgeText);
+      const badgeW = displayWidth(badgeText);
+      const timePart = time ? ` ${time} ` : "";
+      const timeW = displayWidth(timePart);
+      const ruleW = Math.max(0, w - 1 - badgeW - timeW);
+      const rule = "─".repeat(ruleW);
+      // top: rail + badge + rule + time
+      lines.push(
+        fgBg(st.rail, theme.canvas, "╭") +
+          badge +
+          fg(theme.chat.frame, rule) +
+          (time ? fg(theme.chat.timeFg, timePart) : "") +
+          sgrDefault(),
+      );
+
+      const bodyW = Math.max(4, w - 2); // "│ " + text
+      const wrapped = wrapPlain(turn.text, bodyW);
+      const bodyLines = wrapped.length > 0 ? wrapped : [" "];
+      for (const wl of bodyLines) {
+        lines.push(
+          fgBg(st.rail, st.bodyBg, "│") +
+            fgBg(st.text, st.bodyBg, " " + padEndWidth(wl, bodyW)) +
+            sgrDefault(),
+        );
       }
-      lines.push("");
+
+      // bottom frame
+      lines.push(
+        fgBg(st.rail, theme.canvas, "╰") +
+          fg(theme.chat.frame, "─".repeat(Math.max(0, w - 1))) +
+          sgrDefault(),
+      );
+      // air between bubbles
+      lines.push(fg(theme.canvas, padEndWidth("", w)));
     }
+
     chatLines = lines;
   }
 
