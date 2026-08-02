@@ -1269,8 +1269,7 @@ export async function runRawTui(
       chatTurns.length === 0
         ? "no messages · Esc → sessions"
         : `messages ${chatTurns.length} · ↑↓ · Enter full · Esc sessions`;
-    // Differential only — avoid full-screen erase (slow on WSL / large terms)
-    paintSoft();
+    paintEnterChat();
   }
 
   function expandChatAtCursor(): void {
@@ -1314,12 +1313,16 @@ export async function runRawTui(
     if (focusPane === "detail") focusPane = "sessions";
   }
 
-  /** Close chat → sessions. Differential paint for instant Esc. */
+  /**
+   * Close chat → sessions.
+   * Minimal paint only (see paintLeaveChat) — full paintSoft still rewrote
+   * every list row + brand and felt ~1s lag on WSL/Windows Terminal.
+   */
   function closeChat(): void {
     resetChatState();
     focusPane = "sessions";
     statusLine = "";
-    paintSoft();
+    paintLeaveChat();
   }
 
   /** If list cursor left the open chat session, drop chat → meta. */
@@ -1630,8 +1633,8 @@ export async function runRawTui(
   }
 
   /**
-   * Fast UI refresh without full-screen erase.
-   * Use for Esc leave-chat / open-chat / focus changes — avoids ~1s lag on WSL.
+   * Fast UI refresh without full-screen erase (still repaints list+brand).
+   * Prefer paintLeaveChat / paintEnterChat for Esc paths.
    */
   function paintSoft(): void {
     beginBatch();
@@ -1666,6 +1669,47 @@ export async function runRawTui(
   function paintChatPaneOnly(): void {
     beginBatch();
     try {
+      paintDetailHeader();
+      paintDetail();
+      paintFooter();
+      write(move(layout.rowFooter, 1));
+    } finally {
+      endBatch();
+    }
+  }
+
+  /**
+   * Esc leave chat → sessions: paint ONLY what changes.
+   *
+   * Root cause of lag: rewriting brand + all list rows forces the terminal
+   * emulator to re-layout/re-rasterize most of the screen (slow on WSL /
+   * Windows Terminal), even when JS rebuild is only a few ms.
+   *
+   * Must update:
+   *  - cursor list row (regain select highlight; focus was on detail)
+   *  - detail header Chat→Detail + detail body → meta
+   *  - footer
+   */
+  function paintLeaveChat(): void {
+    beginBatch();
+    try {
+      const slot = cursor - offset;
+      if (slot >= 0 && slot < layout.page) paintListSlot(slot);
+      paintDetailHeader();
+      paintDetail();
+      paintFooter();
+      write(move(layout.rowFooter, 1));
+    } finally {
+      endBatch();
+    }
+  }
+
+  /** Enter chat: drop list select look + fill detail with message list. */
+  function paintEnterChat(): void {
+    beginBatch();
+    try {
+      const slot = cursor - offset;
+      if (slot >= 0 && slot < layout.page) paintListSlot(slot);
       paintDetailHeader();
       paintDetail();
       paintFooter();
