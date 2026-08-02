@@ -5,7 +5,7 @@
  *   mark2 | status8 | source6 | age5 | msgs5 | title flex | resumeDir flex
  *
  * Keys: ↑↓ Enter Space i gg G dd u y / : … ctrl-f/b H M L
- * Enter = open chat transcript (near→far) in right pane; Esc closes chat;
+ * Enter = open chat message list (previews); Enter again = full text;
  * Space = toggle multi-select; i = rename title (insert);
  * :empty / :missing / :bad = bulk-select by health (ex cmdline);
  * dd = mark selection (or cursor) for delete; :wq applies deletes & exits;
@@ -90,12 +90,12 @@ const HELP_GROUPS: ReadonlyArray<{ title: string; keys: [string, string][] }> =
       ],
     },
     {
-      title: "Chat (right pane, view only)",
+      title: "Chat (right pane)",
       keys: [
-        ["Enter", "Show conversation (near→far) on the right"],
-        ["↑ / ↓", "Scroll transcript"],
-        ["PgUp / PgDn", "Page scroll"],
-        ["Esc", "Leave chat · focus middle session list"],
+        ["Enter (session)", "Open message list (preview, near→far)"],
+        ["↑ / ↓", "Move in message list · scroll when expanded"],
+        ["Enter (list row)", "Expand full text of that message"],
+        ["Esc", "Collapse full → list · or list → sessions"],
       ],
     },
     {
@@ -495,13 +495,16 @@ export async function runRawTui(
   let helpMode = false;
   let helpOffset = 0;
   /**
-   * Detail panel: meta (id/cmd) vs chat transcript.
-   * Enter opens chat (近→远, newest first); Esc closes when focus=detail.
+   * Detail panel: meta | chat list (1-line previews) | expanded full message.
+   * Session Enter → list; list Enter → full; Esc full→list→sessions.
    */
   let detailView: "meta" | "chat" = "meta";
   let chatTurns: TranscriptTurn[] = [];
-  let chatLines: string[] = []; // pre-wrapped display lines
+  let chatLines: string[] = []; // painted rows for current chat mode
   let chatOffset = 0;
+  let chatCursor = 0; // index into chatTurns (list mode)
+  /** null = list previews; number = full text of that turn index */
+  let chatExpandIdx: number | null = null;
   let chatSessionKey: string | null = null;
   /** dd marks for real delete on :wq */
   const pendingDelete = new Map<string, SessionRecord>();
@@ -1082,7 +1085,7 @@ export async function runRawTui(
     return out;
   }
 
-  /** Local HH:MM for message meta row. */
+  /** Local HH:MM for list / full headers. */
   function chatTimeLabel(at?: string | null): string {
     if (!at) return "";
     const d = new Date(at);
@@ -1092,168 +1095,146 @@ export async function runRawTui(
     return `${hh}:${mm}`;
   }
 
-  type ChatCard = {
+  function chatRoleMeta(role: string): {
     name: string;
     nameFg: string;
     bar: string;
-    bg: string;
-    text: string;
-    /** Shift card right (You) for a light “sent” feel */
-    indent: number;
-  };
-
-  function chatCardFor(role: string, paneW: number): ChatCard {
+  } {
     const c = theme.chat;
-    // indent user cards when pane is wide enough
-    const userIndent = paneW >= 28 ? 2 : 0;
     switch (role) {
       case "user":
-        return {
-          name: "You",
-          nameFg: c.userName,
-          bar: c.userBar,
-          bg: c.userBg,
-          text: c.userText,
-          indent: userIndent,
-        };
+        return { name: "You", nameFg: c.userName, bar: c.userBar };
       case "tool":
-        return {
-          name: "Tool",
-          nameFg: c.toolName,
-          bar: c.toolBar,
-          bg: c.toolBg,
-          text: c.toolText,
-          indent: 0,
-        };
+        return { name: "Tool", nameFg: c.toolName, bar: c.toolBar };
       case "thought":
-        return {
-          name: "Think",
-          nameFg: c.thinkName,
-          bar: c.thinkBar,
-          bg: c.thinkBg,
-          text: c.thinkText,
-          indent: 0,
-        };
+        return { name: "Think", nameFg: c.thinkName, bar: c.thinkBar };
       default:
-        return {
-          name: "Agent",
-          nameFg: c.agentName,
-          bar: c.agentBar,
-          bg: c.agentBg,
-          text: c.agentText,
-          indent: 0,
-        };
+        return { name: "Agent", nameFg: c.agentName, bar: c.agentBar };
     }
   }
 
-  /**
-   * One display row of a chat card: optional left gutter + accent bar + fill.
-   * Layout: [indent spaces][▌ bar][ content padded to cardW ]
-   */
-  function chatCardRow(
-    indent: number,
-    bar: string,
-    fgHex: string,
-    bg: string,
-    content: string,
-    cardW: number,
-  ): string {
-    const barW = 1;
-    const innerW = Math.max(1, cardW - barW);
-    const plain = padEndWidth(truncateWidth(content, innerW), innerW);
-    const gutter =
-      indent > 0 ? fg(theme.canvas, " ".repeat(indent)) : "";
-    return (
-      gutter +
-      fgBg(bar, bg, "▌") +
-      fgBg(fgHex, bg, plain) +
-      sgrDefault()
-    );
+  /** Collapse whitespace → single-line preview. */
+  function chatPreviewPlain(text: string): string {
+    return text.replace(/\s+/g, " ").trim();
   }
 
+  const CHAT_LIST_HEADER = 2; // title row + rule
+
   /**
-   * Build chat lines (newest first).
-   * Modern message-list cards: thin accent bar, soft fill, name+time meta —
-   * no emoji badges, no ASCII box frames.
+   * List mode: one truncated preview row per turn (width-adaptive).
+   * Expand mode: full wrapped body of chatExpandIdx.
    */
   function rebuildChatLines(innerW: number): void {
     const lines: string[] = [];
-    const w = Math.max(14, innerW);
+    const w = Math.max(12, innerW);
     const c = theme.chat;
 
     if (chatTurns.length === 0) {
       lines.push(
-        fgBg(
-          c.headerFg,
-          c.headerBg,
-          padEndWidth("  No messages", w),
-        ),
+        fgBg(c.headerFg, c.headerBg, padEndWidth("  No messages", w)),
       );
       chatLines = lines;
       return;
     }
 
-    // Minimal header: accent tick + quiet meta
+    // ── expanded full message ──
+    if (chatExpandIdx !== null) {
+      const turn = chatTurns[chatExpandIdx];
+      if (!turn) {
+        chatExpandIdx = null;
+        rebuildChatLines(innerW);
+        return;
+      }
+      const meta = chatRoleMeta(turn.role);
+      const time = chatTimeLabel(turn.at);
+      const left = ` ${meta.name}`;
+      const right = time
+        ? `${time} · Esc list`
+        : "Esc list";
+      const gap = Math.max(1, w - 1 - displayWidth(left) - displayWidth(right));
+      lines.push(
+        fgBg(meta.bar, c.headerBg, " ") +
+          fgBg(meta.nameFg, c.headerBg, left) +
+          fgBg(c.headerFg, c.headerBg, " ".repeat(gap)) +
+          fgBg(c.headerFg, c.headerBg, right) +
+          sgrDefault(),
+      );
+      lines.push(fg(c.sep, "─".repeat(w)));
+      const bodyW = Math.max(4, w - 1);
+      const bodyBg =
+        turn.role === "user"
+          ? c.userBg
+          : turn.role === "tool"
+            ? c.toolBg
+            : c.agentBg;
+      const bodyFg =
+        turn.role === "user"
+          ? c.userText
+          : turn.role === "tool"
+            ? c.toolText
+            : c.agentText;
+      const wrapped = wrapPlain(turn.text, bodyW);
+      for (const wl of wrapped.length ? wrapped : [""]) {
+        lines.push(
+          fgBg(meta.bar, bodyBg, " ") +
+            fgBg(bodyFg, bodyBg, padEndWidth(" " + wl, bodyW)) +
+            sgrDefault(),
+        );
+      }
+      chatLines = lines;
+      return;
+    }
+
+    // ── list: one preview line per turn ──
     {
-      const left = " Chat";
-      const right = `${chatTurns.length} · newest first`;
-      const gap = Math.max(1, w - displayWidth(left) - displayWidth(right) - 1);
-      const head =
+      const left = " Messages";
+      const right = `${chatTurns.length} · Enter full`;
+      const gap = Math.max(1, w - 1 - displayWidth(left) - displayWidth(right));
+      lines.push(
         fgBg(c.headerAccent, c.headerBg, " ") +
-        fgBg(c.headerFg, c.headerBg, left) +
-        fgBg(c.headerFg, c.headerBg, " ".repeat(gap)) +
-        fgBg(c.headerFg, c.headerBg, right) +
-        sgrDefault();
-      lines.push(head);
+          fgBg(c.headerFg, c.headerBg, left) +
+          fgBg(c.headerFg, c.headerBg, " ".repeat(gap)) +
+          fgBg(c.headerFg, c.headerBg, right) +
+          sgrDefault(),
+      );
     }
     lines.push(fg(c.sep, "─".repeat(w)));
 
-    for (const turn of chatTurns) {
-      const card = chatCardFor(turn.role, w);
-      const cardW = Math.max(10, w - card.indent);
-      const time = chatTimeLabel(turn.at);
+    const roleCol = 6; // "Agent" / "You  "
+    for (let i = 0; i < chatTurns.length; i++) {
+      const turn = chatTurns[i]!;
+      const meta = chatRoleMeta(turn.role);
+      const selected = i === chatCursor;
+      const rolePlain = padEndWidth(meta.name, roleCol);
+      const preview = chatPreviewPlain(turn.text);
+      // "▌" + role + " " + preview  → adaptive truncate
+      const restW = Math.max(4, w - 1 - roleCol - 1);
+      const prevPlain = truncateWidth(preview || "…", restW);
+      const rowPlain =
+        rolePlain + " " + padEndWidth(prevPlain, restW);
 
-      // Meta: "Agent" …… "22:02"  (name left, time right, same soft bg)
-      {
-        const name = ` ${card.name}`;
-        const timeStr = time ? `${time} ` : "";
-        const mid = Math.max(
-          1,
-          cardW - 1 - displayWidth(name) - displayWidth(timeStr),
-        );
-        const metaInner =
-          name + " ".repeat(mid) + timeStr;
+      if (selected) {
         lines.push(
-          chatCardRow(
-            card.indent,
-            card.bar,
-            card.nameFg,
-            card.bg,
-            metaInner,
-            cardW,
-          ),
+          fgBg(theme.selectFg, theme.selectBg, "▌") +
+            fgBg(
+              theme.selectFg,
+              theme.selectBg,
+              padEndWidth(rowPlain, w - 1),
+            ) +
+            sgrDefault(),
+        );
+      } else {
+        lines.push(
+          fgBg(meta.bar, c.agentBg, "▌") +
+            fgBg(meta.nameFg, c.agentBg, rolePlain) +
+            fgBg(
+              c.agentText,
+              c.agentBg,
+              " " + padEndWidth(prevPlain, restW),
+            ) +
+            sgrDefault(),
         );
       }
-
-      // Body: soft card, readable text, left pad inside bar
-      const bodyInnerW = Math.max(4, cardW - 1 - 1); // bar + leading space
-      const wrapped = wrapPlain(turn.text, bodyInnerW);
-      const bodyLines = wrapped.length > 0 ? wrapped : [""];
-      for (const wl of bodyLines) {
-        lines.push(
-          chatCardRow(
-            card.indent,
-            card.bar,
-            card.text,
-            card.bg,
-            " " + wl,
-            cardW,
-          ),
-        );
-      }
-
-      // Quiet breathing room (canvas, not a heavy frame)
-      lines.push(fg(theme.canvas, padEndWidth("", w)));
     }
 
     chatLines = lines;
@@ -1268,16 +1249,47 @@ export async function runRawTui(
     chatTurns = readTranscript(s);
     chatSessionKey = sessionKey(s);
     chatOffset = 0;
+    chatCursor = 0;
+    chatExpandIdx = null;
     detailView = "chat";
-    // Right pane is view-only; focus detail only so ↑↓ scroll the transcript.
     focusPane = "detail";
     const inner = Math.max(8, layout.detailW - 2);
     rebuildChatLines(inner);
     statusLine =
       chatTurns.length === 0
         ? "no messages · Esc → sessions"
-        : `chat ${chatTurns.length} · ↑↓ scroll · Esc → sessions`;
+        : `messages ${chatTurns.length} · ↑↓ · Enter full · Esc sessions`;
     fullPaint();
+  }
+
+  function expandChatAtCursor(): void {
+    if (detailView !== "chat" || chatTurns.length === 0) return;
+    if (chatExpandIdx !== null) {
+      // already full → collapse to list
+      chatExpandIdx = null;
+      chatOffset = 0;
+      clampChatListScroll();
+      rebuildChatLines(Math.max(8, layout.detailW - 2));
+      statusLine = `messages ${chatTurns.length} · ↑↓ · Enter full · Esc sessions`;
+      fullPaint();
+      return;
+    }
+    chatExpandIdx = chatCursor;
+    chatOffset = 0;
+    rebuildChatLines(Math.max(8, layout.detailW - 2));
+    statusLine = "full message · ↑↓ scroll · Esc → list";
+    fullPaint();
+  }
+
+  function collapseChatExpand(): boolean {
+    if (detailView !== "chat" || chatExpandIdx === null) return false;
+    chatExpandIdx = null;
+    chatOffset = 0;
+    clampChatListScroll();
+    rebuildChatLines(Math.max(8, layout.detailW - 2));
+    statusLine = `messages ${chatTurns.length} · ↑↓ · Enter full · Esc sessions`;
+    fullPaint();
+    return true;
   }
 
   /** Reset chat state without painting (caller paints). Always leave focus on sessions. */
@@ -1286,8 +1298,9 @@ export async function runRawTui(
     chatTurns = [];
     chatLines = [];
     chatOffset = 0;
+    chatCursor = 0;
+    chatExpandIdx = null;
     chatSessionKey = null;
-    // Esc / list move: always return to middle session column
     if (focusPane === "detail") focusPane = "sessions";
   }
 
@@ -1312,8 +1325,37 @@ export async function runRawTui(
     return Math.max(0, chatLines.length - layout.page);
   }
 
+  /** Keep chatCursor row visible in list mode. */
+  function clampChatListScroll(): void {
+    if (chatExpandIdx !== null) return;
+    const row = CHAT_LIST_HEADER + chatCursor;
+    if (row < chatOffset) chatOffset = row;
+    if (row >= chatOffset + layout.page) {
+      chatOffset = row - layout.page + 1;
+    }
+    chatOffset = Math.max(0, Math.min(chatMaxOffset(), chatOffset));
+  }
+
+  function moveChatList(delta: number): void {
+    if (chatTurns.length === 0) return;
+    chatCursor = Math.max(
+      0,
+      Math.min(chatTurns.length - 1, chatCursor + delta),
+    );
+    clampChatListScroll();
+    rebuildChatLines(Math.max(8, layout.detailW - 2));
+    paintDetail();
+    paintFooter();
+    write(move(layout.rowFooter, 1));
+  }
+
   function scrollChat(delta: number): void {
     if (detailView !== "chat") return;
+    if (chatExpandIdx === null) {
+      // list: move selection (page jumps by page size)
+      moveChatList(delta);
+      return;
+    }
     const maxOff = chatMaxOffset();
     chatOffset = Math.max(0, Math.min(maxOff, chatOffset + delta));
     paintDetail();
@@ -1379,7 +1421,7 @@ export async function runRawTui(
       rest = rest.slice(chunk.length);
     }
     lines.push("");
-    push("Enter · open chat (near→far)", theme.dim);
+    push("Enter · message list (preview)", theme.dim);
 
     return lines;
   }
@@ -1527,7 +1569,10 @@ export async function runRawTui(
     let msg = "";
     if (focusPane === "tags") msg = "tags focus · Tab→sessions · ↑↓ filter";
     if (focusPane === "detail" && detailView === "chat")
-      msg = "view chat · ↑↓ scroll · Esc → sessions";
+      msg =
+        chatExpandIdx !== null
+          ? "full msg · ↑↓ scroll · Esc → list"
+          : "msg list · ↑↓ · Enter full · Esc sessions";
     if (tagFilter) msg += (msg ? " · " : "") + `tag:${tagFilter}`;
     if (filter) msg += (msg ? " · " : "") + `filter "${filter}"`;
     if (sourceIdx !== 0) msg += (msg ? " · " : "") + SOURCES[sourceIdx];
@@ -2481,7 +2526,8 @@ export async function runRawTui(
         return;
       }
       if (key.name === "escape" && !filterMode) {
-        // Chat is view-only: Esc always leaves right pane → middle sessions
+        // full message → list → sessions
+        if (detailView === "chat" && collapseChatExpand()) return;
         if (detailView === "chat" || focusPane === "detail") {
           closeChat();
           return;
@@ -2678,10 +2724,10 @@ export async function runRawTui(
         return;
       }
 
-      // Chat detail: scroll transcript; Enter reloads current session
+      // Chat: list previews / expanded full text
       if (focusPane === "detail") {
         if (key.name === "return") {
-          openChatForCursor();
+          if (detailView === "chat") expandChatAtCursor();
           return;
         }
         if (key.name === "up") {
