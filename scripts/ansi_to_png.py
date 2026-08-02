@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Render a tmux/ANSI capture (truecolor FG+BG) to a PNG screenshot."""
+"""Render a tmux/ANSI capture (truecolor FG+BG) to a PNG screenshot.
+
+Uses a **monospace** Latin font for 1-cell chars and a CJK font for
+full-width chars so the TUI grid stays aligned (no "G r o k" spacing).
+"""
 from __future__ import annotations
 
 import re
@@ -17,32 +21,47 @@ OSC = re.compile(r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)")
 # Match TUI canvas (green dark) — see src/tui/theme.ts
 DEFAULT_BG = (11, 18, 14)
 DEFAULT_FG = (232, 238, 233)
+# Cell size tuned so DejaVu/JetBrains Mono 14 ≈ 1 cell wide
 CELL_W = 9
 CELL_H = 18
-PAD = 16
+PAD = 14
+FONT_SIZE = 14
 
-# Prefer CJK-capable fonts so Chinese titles don't render as tofu (□).
-FONT_CANDIDATES = [
-    str(Path(__file__).resolve().parent / "fonts" / "wqy-microhei.ttc"),
+_SCRIPT_DIR = Path(__file__).resolve().parent
+
+# Monospace first (Latin / digits / box-drawing fallbacks)
+MONO_CANDIDATES = [
+    str(_SCRIPT_DIR / "fonts" / "JetBrainsMono-Regular.ttf"),
+    str(_SCRIPT_DIR / "fonts" / "DejaVuSansMono.ttf"),
+    "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
+    "/usr/share/fonts/truetype/ubuntu/UbuntuMono-R.ttf",
+]
+
+# CJK (full-width) — proportional is fine; we only use it for wide cells
+CJK_CANDIDATES = [
+    str(_SCRIPT_DIR / "fonts" / "wqy-microhei.ttc"),
     str(Path.home() / ".local/share/fonts/oh-my-sessions/wqy-microhei.ttc"),
-    str(Path.home() / ".local/share/fonts/wqy-microhei.ttc"),
     "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
     "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-    "/usr/share/fonts/opentype/noto/NotoSansCJK-SC-Regular.otf",
     "/usr/share/fonts/truetype/noto/NotoSansSC-Regular.otf",
-    "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
-    "/usr/share/fonts/truetype/noto/NotoSansMono-Regular.ttf",
 ]
 
 
-def load_font(size: int = 14):
-    for p in FONT_CANDIDATES:
+def _first_font(paths: list[str], size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+    for p in paths:
         try:
             if Path(p).is_file():
                 return ImageFont.truetype(p, size)
         except Exception:
             continue
     return ImageFont.load_default()
+
+
+def load_fonts(size: int = FONT_SIZE):
+    mono = _first_font(MONO_CANDIDATES, size)
+    cjk = _first_font(CJK_CANDIDATES, size)
+    return mono, cjk
 
 
 def display_width(s: str) -> int:
@@ -58,6 +77,7 @@ def display_width(s: str) -> int:
             or 0xFF00 <= o <= 0xFF60
             or 0xFFE0 <= o <= 0xFFE6
             or o >= 0x1F300
+            # box drawing / block elements often double in some fonts — keep 1
         ):
             w += 2
         else:
@@ -65,12 +85,32 @@ def display_width(s: str) -> int:
     return w
 
 
+def is_wide(ch: str) -> bool:
+    return display_width(ch) == 2
+
+
+def prefers_cjk_font(ch: str) -> bool:
+    """Wide CJK, or symbols often missing from Latin mono fonts (★ etc.)."""
+    if is_wide(ch):
+        return True
+    o = ord(ch)
+    if ch in "★☆✦✧•●○◆◇■□▲△▶▷◀◁▌▐█░▒▓✓✗✔✖":
+        return True
+    # Misc symbols / dingbats / geometric shapes
+    if 0x2190 <= o <= 0x21FF:  # arrows
+        return True
+    if 0x2600 <= o <= 0x27BF:
+        return True
+    if 0x2B00 <= o <= 0x2BFF:
+        return True
+    return False
+
+
 def apply_sgr(
     params: list[int],
     fg: tuple[int, int, int] | None,
     bg: tuple[int, int, int] | None,
 ) -> tuple[tuple[int, int, int] | None, tuple[int, int, int] | None]:
-    """Apply one CSI … m parameter list (may contain several attrs)."""
     i = 0
     n = len(params)
     if n == 0:
@@ -93,16 +133,13 @@ def apply_sgr(
             bg = (params[i + 2], params[i + 3], params[i + 4])
             i += 5
         elif p == 38 and i + 2 < n and params[i + 1] == 5:
-            # 256-color — approximate gray ramp / ignore fancy mapping
             idx = params[i + 2]
             if 232 <= idx <= 255:
                 v = 8 + (idx - 232) * 10
                 fg = (v, v, v)
             elif 16 <= idx <= 231:
                 c = idx - 16
-                r = c // 36
-                g = (c % 36) // 6
-                b = c % 6
+                r, g, b = c // 36, (c % 36) // 6, c % 6
                 fg = (r * 51, g * 51, b * 51)
             i += 3
         elif p == 48 and i + 2 < n and params[i + 1] == 5:
@@ -112,13 +149,10 @@ def apply_sgr(
                 bg = (v, v, v)
             elif 16 <= idx <= 231:
                 c = idx - 16
-                r = c // 36
-                g = (c % 36) // 6
-                b = c % 6
+                r, g, b = c // 36, (c % 36) // 6, c % 6
                 bg = (r * 51, g * 51, b * 51)
             i += 3
         else:
-            # bold/dim/underline etc. — ignore for screenshot
             i += 1
     return fg, bg
 
@@ -138,6 +172,46 @@ def parse_line(line: str):
         pos = m.end()
     if pos < len(line):
         yield line[pos:], fg, bg
+
+
+def glyph_bbox(draw: ImageDraw.ImageDraw, ch: str, font) -> tuple[int, int, int, int]:
+    try:
+        return draw.textbbox((0, 0), ch, font=font)
+    except Exception:
+        return (0, 0, CELL_W, CELL_H)
+
+
+def draw_char_in_cell(
+    draw: ImageDraw.ImageDraw,
+    x: int,
+    y: int,
+    ch: str,
+    cells: int,
+    fg: tuple[int, int, int],
+    bg: tuple[int, int, int],
+    font_mono,
+    font_cjk,
+) -> None:
+    """Paint one character centered in `cells` grid cells."""
+    cell_px = cells * CELL_W
+    if bg != DEFAULT_BG:
+        draw.rectangle([x, y, x + cell_px - 1, y + CELL_H - 1], fill=bg)
+
+    if ch in (" ", "\t") or ch == "\u00a0":
+        return
+
+    font = font_cjk if prefers_cjk_font(ch) else font_mono
+    l, t, r, b = glyph_bbox(draw, ch, font)
+    gw, gh = max(1, r - l), max(1, b - t)
+    # If mono produced an empty/tiny box, fall back to CJK
+    if font is font_mono and gw < 2:
+        font = font_cjk
+        l, t, r, b = glyph_bbox(draw, ch, font)
+        gw, gh = max(1, r - l), max(1, b - t)
+    # Center in cell
+    ox = x + max(0, (cell_px - gw) // 2) - l
+    oy = y + max(0, (CELL_H - gh) // 2) - t
+    draw.text((ox, oy), ch, fill=fg, font=font)
 
 
 def main() -> None:
@@ -163,7 +237,7 @@ def main() -> None:
     h = PAD * 2 + len(parsed) * CELL_H
     img = Image.new("RGB", (w, h), DEFAULT_BG)
     draw = ImageDraw.Draw(img)
-    font = load_font(14)
+    font_mono, font_cjk = load_fonts(FONT_SIZE)
 
     y = PAD
     for runs in parsed:
@@ -172,21 +246,13 @@ def main() -> None:
             color = fg if fg is not None else DEFAULT_FG
             cell_bg = bg if bg is not None else DEFAULT_BG
             for ch in text:
-                cw = 2 if display_width(ch) == 2 else 1
-                # fill cell background (selection, pills, brand chips, …)
-                if cell_bg != DEFAULT_BG:
-                    draw.rectangle(
-                        [x, y, x + cw * CELL_W - 1, y + CELL_H - 1],
-                        fill=cell_bg,
-                    )
-                # skip pure space after bg fill for speed
-                if ch != " " and ch != "\t":
-                    # slight vertical centering for CJK in cell
-                    draw.text((x, y + 1), ch, fill=color, font=font)
-                x += cw * CELL_W
+                cells = 2 if is_wide(ch) else 1
+                draw_char_in_cell(
+                    draw, x, y, ch, cells, color, cell_bg, font_mono, font_cjk
+                )
+                x += cells * CELL_W
         y += CELL_H
 
-    # brand accent strip
     draw.rectangle([0, 0, w, 3], fill=(42, 219, 92))
     img.save(dst, "PNG")
     print(f"wrote {dst} ({w}x{h})")
