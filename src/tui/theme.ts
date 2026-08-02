@@ -73,33 +73,34 @@ export const theme = {
   },
 
   /**
-   * Chat transcript bubbles (right pane).
-   * Agent = brand green; You = cool cyan; keep contrast on canvas.
+   * Chat pane — modern “message list” (no emoji chrome).
+   * Soft cards + thin accent bar; Agent brand green, You cool slate.
    */
   chat: {
-    headerFg: "#C8F0D0",
-    headerBg: "#0E1A12",
-    agentBadgeFg: "#08120B",
-    agentBadgeBg: "#2ADB5C",
-    agentRail: "#27BD51",
-    agentBodyBg: "#0F1C14",
-    agentText: "#E8F8EC",
-    userBadgeFg: "#061018",
-    userBadgeBg: "#3DCFE8",
-    userRail: "#2A9FBE",
-    userBodyBg: "#0C161C",
-    userText: "#E6F4FA",
-    toolBadgeFg: "#1A1408",
-    toolBadgeBg: "#E8C060",
-    toolRail: "#B8943A",
-    toolBodyBg: "#1A1810",
-    toolText: "#F0E8D0",
-    thinkBadgeFg: "#E0E4E0",
-    thinkBadgeBg: "#2A322E",
-    thinkRail: "#4A5550",
-    thinkBodyBg: "#121614",
+    /** Sticky strip at top of pane */
+    headerFg: "#8FA896",
+    headerBg: "#0C1410",
+    headerAccent: "#2ADB5C",
+    /** Agent card */
+    agentName: "#3DDC6A",
+    agentBar: "#2ADB5C",
+    agentBg: "#101A14",
+    agentText: "#E6EEE8",
+    /** You card */
+    userName: "#7EC8E3",
+    userBar: "#4AA8C9",
+    userBg: "#0E161C",
+    userText: "#E4EEF2",
+    /** Tool / think (rare) */
+    toolName: "#D4B56A",
+    toolBar: "#C4A04A",
+    toolBg: "#16140E",
+    toolText: "#EDE6D4",
+    thinkName: "#8A968C",
+    thinkBar: "#4A5550",
+    thinkBg: "#121614",
     thinkText: "#A8B5AC",
-    timeFg: "#6A8A72",
-    frame: "#1E3A28",
+    timeFg: "#5A6E60",
+    sep: "#152018",
   },
 } as const;
