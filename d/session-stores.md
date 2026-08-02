@@ -93,7 +93,9 @@ $GROK_HOME/sessions/session_search.sqlite   # FTS（只读可用）
 
 ### Rename（TUI `i`）
 
-写 `summary.json`：`generated_title` 与 `session_summary` 同步为新标题（立即写盘）。
+**本工具统一用仓库内 CSV**，不再改 Grok 原生 `summary.json`（避免被 Grok 覆盖、且跨 source 一致）。
+
+见下文「本工具标题覆盖」。
 
 ### 外源 → Grok handoff
 
@@ -142,7 +144,7 @@ transcript 当**不可信历史**，只做 handoff 摘要。
 
 ### Rename（TUI `i`）
 
-upsert `<id>-session.json` 的 `title`（无 meta 则创建；discover 优先读 meta.title）。
+本工具 **不** 写 Qoder meta；标题覆盖见「本工具标题覆盖」。
 
 ---
 
@@ -190,7 +192,7 @@ user 的 `message.content` 可能是 **string 或 content-block 数组**（须 `
 
 ### Rename（TUI `i`）
 
-向 jsonl **追加**一行 `{"type":"custom-title","customTitle":"…"}`（与官方 `/rename` 一致；读时 custom-title 优先于 ai-title）。
+本工具 **不** 写 Claude jsonl；标题覆盖见「本工具标题覆盖」。
 
 ---
 
@@ -202,6 +204,61 @@ user 的 `message.content` 可能是 **string 或 content-block 数组**（须 `
 | Cursor | agent-transcripts 等 | 预留 |
 
 完整 transcript 解析可参考 Grok `session_reader.py`；本工具 list 层只要 id/时间/条数/标题/路径。
+
+---
+
+## 本工具标题覆盖（Rename 权威）
+
+路径：`<repo>/data/session-titles.csv`（默认 gitignore，仅本机）
+
+```csv
+source,id,title,updated_at
+grok,019f…,My title,2026-07-31T12:00:00.000Z
+claude,aaaaaaaa-bbbb-…,Other,2026-07-31T12:01:00.000Z
+```
+
+| 时机 | 行为 |
+|------|------|
+| `i` rename | `setTitleOverride` 原子重写 CSV |
+| discover / 8s reload | `applyTitleOverrides` 覆盖 `SessionRecord.title` |
+| 原生 Agent 存储 | **不修改** |
+
+实现：`lib/title-store.ts` + `lib/rename-session.ts`。
+
+---
+
+## 本工具星标（Star）
+
+路径：`<repo>/data/session-stars.csv`（gitignore）
+
+| 规则 | 行为 |
+|------|------|
+| `*` | 置顶 + 禁 `dd` |
+| 存储 | CSV `source,id,starred_at` |
+
+实现：`lib/star-store.ts`。
+
+---
+
+## 本工具 Tag（单值分组）
+
+路径：`<repo>/data/session-tags.csv`（gitignore）
+
+```csv
+source,id,tag,updated_at
+grok,019f…,work,2026-08-02T12:00:00.000Z
+```
+
+| 规则 | 行为 |
+|------|------|
+| 一 session 一 tag | upsert 覆盖 |
+| UI | 左侧纵向 tag 栏；首项 `all` |
+| `Tab` | 焦点 tags ↔ sessions |
+| tags 栏 ↑↓ | 按 tag 筛选列表 |
+| `t` | 分配：↑↓ 选已有 / 在 `+new` 键入新建；Enter 写入；(clear) 清空 |
+| 与 star | 正交；tag 不防删 |
+
+实现：`lib/tag-store.ts`。
 
 ---
 

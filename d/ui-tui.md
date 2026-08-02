@@ -32,7 +32,7 @@
 仅当 `/` 搜索、或 `h`/`s` 非默认筛选、或 `r` 有命令时，才出现 **1 行**瞬时 chrome。
 
 ```
-脑门  agent-session-history  · 快捷键  ·  1/84
+脑门  oh-my-sessions  · 快捷键  ·  1/84
 ════════════════════════════════╤════════════════  ← 脑门/表格（双线）
   状态 来源 多久 条数 标题 目录 │ 详情
 ────────────────────────────────┼────────────────  ← 表头/数据
@@ -65,8 +65,9 @@ gutter 列画 │；表头行接缝用 ┬
 
 | 列 | 显示宽 | 内容 |
 |----|--------|------|
-| mark | 2 | 光标 `▌`；片选 `*`（光标+片选=`▌*`）；片选非光标行用 multi 底色 |
-| 状态 | 8 | 色块：`可续跑` / `空会话` / `目录没了` |
+| mark | 2 | 光标 `▌`；片选 `*`（与 STATUS 分开） |
+| star | 3 | 星标 `★` 独立列 + 右侧 1 列空隙，不贴 STATUS |
+| 状态 | 8 | 色块：OK / Empty / Missing |
 | 来源 | 6 | `Grok` / `Qoder` / … |
 | 多久 | 5 | 右对齐：`2s` `30m` `5d` `1mo` |
 | 条数 | 5 | 右对齐 messageCount |
@@ -84,7 +85,7 @@ gutter 列画 │；表头行接缝用 ┬
 5. 组间宽松 `  ·  `（`brandSep`），不用厚重 `│`  
 
 ```
-▌agent-session-history  ·  [ move ] ↑↓  ·  [ row ] Space select · i rename · dd delete  ·  …     [1/N] [sel] [del] ↻8s
+▌oh-my-sessions  ·  [ move ] ↑↓  ·  [ row ] Space select · i rename · dd delete  ·  …     [1/N] [sel] [del] ↻8s
 ```
 
 - **`y` = copy resume command**；**`/` = search filter**  
@@ -141,23 +142,35 @@ gutter 列画 │；表头行接缝用 ┬
 
 | 键 | 作用 |
 |----|------|
-| `↑↓` | 下 / 上 |
+| `↑↓` | 下 / 上（焦点在列表 / 标签栏 / 聊天详情时各自滚动） |
+| **`Enter`** | **打开对话**：右侧栏显示该会话 transcript，**近→远**（最新在上）；焦点切到 detail |
 | `gg` / `G` | 列表首 / 末 |
-| `ctrl-f` / `ctrl-b` · `PgDn`/`PgUp` | 整页下 / 上 |
+| `ctrl-f` / `ctrl-b` · `PgDn`/`PgUp` | 整页下 / 上（detail 时翻聊天） |
 | `H` / `M` / `L` | 屏首 / 中 / 末 行 |
 | `z` | 将当前行滚到视口中部（近似 zz） |
-| **`Space`** | **片选**：切换当前行 multi-select（行首 `*`；脑门 `sel:N`） |
-| **`i`** | **Rename**：TITLE 内联编辑（vim insert）；**Esc** / **Enter** 退出并保留内容写盘 |
-| `dd` | **标记删除**：有片选则对**全部选中项**；否则当前行（无确认；从列表消失） |
+| **`Space`** | **片选**：切换 multi-select（行首 `*`；脑门 `sel:N`） |
+| **`*`** | **星标 / 取消**：CSV 持久化；**置顶**；**禁止 `dd`**，需先 `*` 取消星标 |
+| **`i`** | **Rename**：TITLE 内联编辑；**Esc** / **Enter** 写 CSV |
+| `dd` | **标记删除**（片选批量 / 当前行）；**跳过已星标**并提示 |
 | `u` | 撤销最近一次删除标记（恢复列表；多次 `dd` 可逐条 undo） |
 | `y` / `yy` / `r` | **copy resume command**（底栏显示；不执行） |
 | `/` | **vim 搜索**：底栏 `/pattern`；实时过滤；**Enter** 确认；**Esc** 取消并恢复；**BS 在空 pattern 上退出**（`/` 本身不可“删除”，它是提示符不是缓冲字符） |
-| `s` / `Tab` | 来源筛选 |
+| `s` | 来源筛选 |
+| `Tab` | 焦点：detail → sessions → tags → sessions |
 | `h` | 状态筛选 |
 | `c` | 清除搜索/筛选 **并清空片选** |
-| Esc | 有片选时清空片选；否则提示 `:q` / `:wq` |
+| Esc | **关闭聊天**（若已打开）→ 清空片选 → 否则提示 `:q` / `:wq` |
 | `:` … Enter | **Ex 命令行**（见下表） |
 | bare `q` / Ctrl-C | **不退出**（提示用 `:q` / `:wq`） |
+
+### 8.0 聊天详情（右栏 Chat · 只读）
+
+- **只看对话**：user / assistant 文本；不展示 tool / thought。
+- 数据：`lib/transcript.ts`（Grok `updates.jsonl`；Qoder/Claude jsonl）。
+- 顺序：**newest first**（近→远）。
+- **Enter**：右栏显示对话；↑↓ 滚动。
+- **Esc**：**关闭聊天并回到中间 session 列表焦点**（不是 tags）。
+- 列表光标换到其他会话时自动退出 Chat → Detail meta。
 
 ### 8.1 Ex 命令（`:` 后输入，Enter 执行；Esc 取消）
 
@@ -183,18 +196,15 @@ gutter 列画 │；表头行接缝用 ┬
 
 **删除语义：** `dd` 只标记；`:wq` 调用 `lib/delete-session.ts` 删 Grok 会话目录 / Qoder jsonl+meta+dir 等。详见 constraints。
 
-**Rename 语义（`i`）：** 立即写盘，不经过 `:wq`。**输入发生在 TITLE 单元格**，底栏只提示 `Enter save · Esc cancel`。
+**Rename 语义（`i`）：** 立即写入本仓库 CSV，不经过 `:wq`，**不**改 Agent 原生存储。
 
-| source | 写哪里 |
-|--------|--------|
-| grok | `summary.json` 的 `generated_title` + `session_summary` |
-| claude | 向 `.jsonl` 追加 `{"type":"custom-title","customTitle":…}` |
-| qoder | upsert `<id>-session.json` 的 `title` |
+| 位置 | 格式 |
+|------|------|
+| `data/session-titles.csv` | `source,id,title,updated_at`（逗号/引号按 RFC4180） |
 
-编辑中：该行用 `editBg` 高亮；TITLE 显示 `buffer + ▌`（过长时右对齐保光标）。  
-- **Esc** / **Enter**：离开 insert，**保留内容**并写盘（vim 习惯：Esc 退出插入，不是撤销）。  
-- 空标题退出：保持原标题。  
-- Ctrl-U：清空输入缓冲。
+discover 后 `applyTitleOverrides()` 用 CSV 覆盖展示标题。个人 CSV 默认 **gitignore**。
+
+编辑中：TITLE 列内联；**Esc** / **Enter** 保留并写 CSV；空标题退出不改。
 
 ---
 

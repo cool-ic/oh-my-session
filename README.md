@@ -1,18 +1,25 @@
-# agent-session-history
+# oh-my-sessions
 
 List local agent sessions (**Grok Build**, **Qoder**, **Claude Code**, …) and answer:
 
 1. **Which sessions exist** (age, whether resumable)  
-2. **Where to resume and which command to run**
+2. **Where to resume and which command to run**  
+3. **What was said** — Enter opens chat in the right pane (near→far)
 
 ---
 
 ## Usage
 
 ```bash
-cd agent_session_history
+cd oh-my-sessions
 npm install    # first time
 npm start      # interactive TUI
+```
+
+CLI (after `npm link` or global install):
+
+```bash
+oh-my-sessions    # or: oms
 ```
 
 Gates / scripts:
@@ -42,14 +49,18 @@ npm run list:json
 | Key | Action |
 |-----|--------|
 | `↑`/`↓` | Move |
-| `Space` | Toggle multi-select (row mark `*`) |
-| **`i`** | **Rename** title inline (vim insert; **Esc** / Enter leave & keep) |
+| **`Enter`** | Open chat (view only, near→far) in right pane |
+| `Tab` | Focus **tags** rail ↔ **sessions** table |
+| `t` | Assign tag (pick existing or type new in left rail) |
+| `Space` | Toggle multi-select |
+| **`*`** | Star / unstar — pin; blocks `dd` |
+| **`i`** | Rename → `data/session-titles.csv` |
 | `gg`/`G` | Top / bottom |
 | `dd` | Mark delete: all selected, or cursor if none |
 | `u` | Undo last delete mark |
 | `y`/`yy`/`r` | **copy resume command** — show in footer for copy (does not run) |
 | `/` | Search |
-| Esc | Clear multi-select (if any); else hint quit |
+| Esc | Close chat → sessions; or clear multi-select; else hint quit |
 | **`:empty`** / **`:missing`** / **`:bad`** | Bulk-select Empty / Missing / both |
 | **`:sel e\|m\|bad\|none`** | Same family; `:sel none` clears selection |
 | **`:q`** | Quit if no pending deletes |

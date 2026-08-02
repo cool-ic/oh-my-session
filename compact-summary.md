@@ -26,7 +26,7 @@
 ### 入口
 
 ```bash
-cd /home/f/agent_session_history && npm start
+cd /home/f/oh-my-sessions && npm start
 ```
 
 ### 关键路径

@@ -13,7 +13,8 @@
 2. **禁止**在未走 TUI 流程时随意删会话；禁止调用 `qodercli --delete-session` 等未接入本工具的破坏性 CLI。  
 3. **允许（显式产品能力）**：
    - TUI 中 `Space` 片选、`:empty`/`:missing`/`:bad` 批量片选、`dd` **标记**删除（有片选则批量；否则当前行）→ 仅在 **`:wq`** 时由 `lib/delete-session.ts` 删除对应会话存储（Grok 会话目录 / Qoder jsonl+meta+dir / Claude jsonl）。**无确认框**。
-   - TUI 中 **`i` rename**：TITLE 内联编辑；**Esc** / **Enter** 离开 insert 并保留内容写盘（Grok / Claude / Qoder；非撤销）。  
+   - TUI 中 **`i` rename**：写 **`data/session-titles.csv`**，不改 Agent 原生存储。  
+   - TUI 中 **`*` star**：写 **`data/session-stars.csv`**；星标会话置顶且 **`dd` 不可删**，须先取消星标。  
 4. **允许**：改本仓库代码与文档；跑只读对照（`grok sessions list` 等）。  
 5. **允许**：读会话元数据；**禁止**把完整 transcript 正文写入本仓库常驻文档或提交 git。  
 6. **退出**（vim 语义）：
@@ -62,7 +63,7 @@
 
 - 日常入口：`npm start`  
 - `y` / `r`：= **copy resume command**（底栏展示，不 spawn）  
-- **`i`**：rename（Esc / Enter 保留并写盘；见 §1.3）  
+- **`i`**：rename → `data/session-titles.csv`（见 §1.3）  
 - `Space` → 片选切换；`:empty`/`:missing`/`:bad`（或 `:sel …`）→ 批量片选；`dd` → 标记删除（片选批量 / 否则当前行）；`:wq` → **真正删盘** 并退出（见上 §1.3 / §1.6）  
 - **禁止**全帧 erase 重绘（workflow §2.6；BUG-001）  
 - 列宽/分栏/脑门/快捷键：见 `d/ui-tui.md`  

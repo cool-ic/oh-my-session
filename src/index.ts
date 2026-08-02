@@ -3,13 +3,40 @@ import { discoverAll } from "./discover/index.js";
 import type { AgentSource } from "./types.js";
 import { ALL_SOURCES } from "./types.js";
 import { enrichSessions } from "./lib/health.js";
+import { applyTitleOverrides } from "./lib/title-store.js";
+import { applyStarFlags } from "./lib/star-store.js";
+import { applyTags } from "./lib/tag-store.js";
 import { formatTable } from "./lib/format.js";
 import { runRawTui } from "./tui/rawApp.js";
 
+function loadSessions(opts: {
+  sources?: import("./types.js").AgentSource[];
+  cwdFilter?: string | null;
+  limit?: number;
+}) {
+  let sessions = applyTags(
+    applyStarFlags(
+      applyTitleOverrides(
+        enrichSessions(
+          discoverAll({
+            sources: opts.sources,
+            cwdFilter: opts.cwdFilter ?? null,
+          }),
+        ),
+      ),
+    ),
+  );
+  if (opts.limit != null && Number.isFinite(opts.limit) && opts.limit >= 0) {
+    sessions = sessions.slice(0, opts.limit);
+  }
+  return sessions;
+}
+
 function printHelp(): void {
-  console.log(`agent-session-history
+  console.log(`oh-my-sessions
 
   npm start              Interactive TUI (main entry)
+  npx oh-my-sessions     After npm link / global install (alias: oms)
 
 Notes:
   RESUME DIR = project path when the session was started (kept even if deleted)
@@ -18,7 +45,7 @@ Notes:
   Claude     = UUID works from any cwd → claude --resume <id>  (-c is cwd-scoped)
   OK/Empty/Missing = has messages / 0 msgs / resume path gone on disk
 
-Keys: ↑↓ Space · :empty/:missing/:bad · dd · :q/:wq · / search · y yank
+Keys: ↑↓ Space · * star · i rename · dd · :empty/:bad · / search · y copy · :q/:wq
 `);
 }
 
@@ -76,15 +103,11 @@ async function main(): Promise<void> {
     return;
   }
 
-  let sessions = enrichSessions(
-    discoverAll({
-      sources: args.sources,
-      cwdFilter: args.cwdFilter ?? null,
-    }),
-  );
-  if (args.limit != null && Number.isFinite(args.limit) && args.limit >= 0) {
-    sessions = sessions.slice(0, args.limit);
-  }
+  const sessions = loadSessions({
+    sources: args.sources,
+    cwdFilter: args.cwdFilter,
+    limit: args.limit,
+  });
 
   if (args.json) {
     console.log(JSON.stringify(sessions, null, 2));
@@ -103,20 +126,14 @@ async function main(): Promise<void> {
   }
 
   // Raw differential TUI — NOT Ink (full-frame erase causes flicker)
-  // reload every 8s so new/updated agent sessions appear without restart
+  // reload every 8s; CSV title overrides re-applied each pass
   await runRawTui(sessions, {
-    reload: () => {
-      let next = enrichSessions(
-        discoverAll({
-          sources: args.sources,
-          cwdFilter: args.cwdFilter ?? null,
-        }),
-      );
-      if (args.limit != null && Number.isFinite(args.limit) && args.limit >= 0) {
-        next = next.slice(0, args.limit);
-      }
-      return next;
-    },
+    reload: () =>
+      loadSessions({
+        sources: args.sources,
+        cwdFilter: args.cwdFilter,
+        limit: args.limit,
+      }),
   });
 }
 

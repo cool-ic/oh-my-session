@@ -4,7 +4,8 @@
  * Columns (display width):
  *   mark2 | status8 | source6 | age5 | msgs5 | title flex | resumeDir flex
  *
- * Keys: ↑↓ Space i gg G dd u y / : … ctrl-f/b H M L
+ * Keys: ↑↓ Enter Space i gg G dd u y / : … ctrl-f/b H M L
+ * Enter = open chat transcript (near→far) in right pane; Esc closes chat;
  * Space = toggle multi-select; i = rename title (insert);
  * :empty / :missing / :bad = bulk-select by health (ex cmdline);
  * dd = mark selection (or cursor) for delete; :wq applies deletes & exits;
@@ -21,6 +22,19 @@ import {
   matchesBulkHealth,
   type BulkHealthMode,
 } from "../lib/health.js";
+import { isStarred, toggleStar } from "../lib/star-store.js";
+import {
+  listTags,
+  normalizeTagName,
+  sessionTag,
+  setSessionTag,
+} from "../lib/tag-store.js";
+import {
+  readTranscript,
+  roleLabel,
+  type TranscriptTurn,
+} from "../lib/transcript.js";
+import { sortKeyLastActive } from "../lib/time.js";
 import {
   displayWidth,
   padEndWidth,
@@ -37,6 +51,95 @@ export interface RawTuiOptions {
   reload?: () => SessionRecord[];
 }
 
+/** Grouped key help for :help overlay */
+const HELP_GROUPS: ReadonlyArray<{ title: string; keys: [string, string][] }> =
+  [
+    {
+      title: "Move",
+      keys: [
+        ["↑ / ↓", "Move cursor in focused pane"],
+        ["gg / G", "Top / bottom of session list"],
+        ["H / M / L", "Screen top / middle / bottom"],
+        ["PgUp / PgDn", "Page up / down"],
+        ["Ctrl-f / Ctrl-b", "Page down / up"],
+        ["z", "Center cursor in viewport"],
+        ["Tab", "Focus tags rail ↔ session list"],
+      ],
+    },
+    {
+      title: "Tags (left rail)",
+      keys: [
+        ["Tab", "Enter / leave tags rail"],
+        ["↑↓ (in tags)", "Select tag · filter sessions (all = everything)"],
+        ["Enter (in tags)", "Keep filter · return to sessions"],
+        ["t", "Assign tag for current session"],
+        ["  · ↑↓", "Pick existing tag or (clear)"],
+        ["  · type in +new", "Create tag and assign (a-z 0-9 _ -)"],
+        ["  · Enter / Esc", "Confirm / cancel assign"],
+      ],
+    },
+    {
+      title: "Session row",
+      keys: [
+        ["Enter", "Open chat in right pane (near→far, newest first)"],
+        ["Space", "Toggle multi-select (* mark)"],
+        ["*", "Star / unstar — pin top; blocks dd"],
+        ["i", "Rename title (inline; Esc/Enter save to CSV)"],
+        ["dd", "Mark delete (skipped if starred; apply on :wq)"],
+        ["u", "Undo last delete mark"],
+        ["y / yy / r", "Copy resume command (show in footer)"],
+      ],
+    },
+    {
+      title: "Chat (right pane, view only)",
+      keys: [
+        ["Enter", "Show conversation (near→far) on the right"],
+        ["↑ / ↓", "Scroll transcript"],
+        ["PgUp / PgDn", "Page scroll"],
+        ["Esc", "Leave chat · focus middle session list"],
+      ],
+    },
+    {
+      title: "Search & filters",
+      keys: [
+        ["/", "Search title / id / path (vim-style)"],
+        ["  · Enter", "Apply search"],
+        ["  · Esc", "Abort · restore previous"],
+        ["  · BS empty", "Exit search"],
+        ["s", "Cycle source filter"],
+        ["h", "Cycle health filter (ok/empty/missing)"],
+        ["c", "Clear all filters + multi-select + tag filter"],
+      ],
+    },
+    {
+      title: "Bulk select (:)",
+      keys: [
+        [":empty / :emp", "Select all empty sessions"],
+        [":missing / :mis", "Select all missing-path sessions"],
+        [":bad", "Select empty + missing"],
+        [":sel e|m|bad|none", "Same via :sel family"],
+      ],
+    },
+    {
+      title: "Quit (:)",
+      keys: [
+        [":q", "Quit if no pending deletes"],
+        [":q!", "Quit · discard pending deletes"],
+        [":wq / :x", "Apply deletes and quit"],
+        [":help / :h / :?", "This help"],
+      ],
+    },
+    {
+      title: "Notes",
+      keys: [
+        ["Titles", "data/session-titles.csv (local)"],
+        ["Stars", "data/session-stars.csv — pin + no dd"],
+        ["Tags", "data/session-tags.csv — one tag per session"],
+        ["Refresh", "Auto re-scan every 8s (skipped while typing)"],
+      ],
+    },
+  ];
+
 const SOURCES: Array<AgentSource | "all"> = [
   "all",
   "grok",
@@ -52,9 +155,14 @@ const HEALTH_FILTERS: Array<SessionHealth | "all"> = [
   "missing",
 ];
 
-/** Fixed column widths (display cols) */
+/**
+ * Fixed column widths (display cols).
+ * mark | star (padded) | gap | status | … — star not glued to STATUS.
+ */
 const LC = {
-  mark: 2,
+  mark: 2, // cursor ▌ + multi *
+  star: 3, // " ★ " or "   "
+  gs: 1, // gap after star before STATUS
   status: 8,
   g1: 1,
   source: 6,
@@ -67,6 +175,8 @@ const LC = {
 } as const;
 const LC_FIXED =
   LC.mark +
+  LC.star +
+  LC.gs +
   LC.status +
   LC.g1 +
   LC.source +
@@ -78,8 +188,7 @@ const LC_FIXED =
   LC.g5;
 
 const ESC = "\x1b";
-const RESET = `${ESC}[0m`;
-const TOOL_NAME = "agent-session-history";
+const TOOL_NAME = "oh-my-sessions";
 
 function hexRgb(hex: string): [number, number, number] {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex);
@@ -88,15 +197,27 @@ function hexRgb(hex: string): [number, number, number] {
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
+/** Default cell style: body text on our dark canvas (not terminal white). */
+function sgrDefault(): string {
+  const [fr, fg_, fb] = hexRgb(theme.text);
+  const [br, bg_, bb] = hexRgb(theme.canvas);
+  return `${ESC}[0m${ESC}[38;2;${fr};${fg_};${fb}m${ESC}[48;2;${br};${bg_};${bb}m`;
+}
+
+/**
+ * Foreground on canvas. Always pairs with canvas BG so light terminals
+ * do not show pale-on-white garbage after RESET.
+ */
 function fg(hex: string, text: string): string {
   const [r, g, b] = hexRgb(hex);
-  return `${ESC}[38;2;${r};${g};${b}m${text}${RESET}`;
+  const [br, bg_, bb] = hexRgb(theme.canvas);
+  return `${ESC}[38;2;${r};${g};${b}m${ESC}[48;2;${br};${bg_};${bb}m${text}${sgrDefault()}`;
 }
 
 function fgBg(fgHex: string, bgHex: string, text: string): string {
   const [fr, fg_, fb] = hexRgb(fgHex);
   const [br, bg_, bb] = hexRgb(bgHex);
-  return `${ESC}[38;2;${fr};${fg_};${fb}m${ESC}[48;2;${br};${bg_};${bb}m${text}${RESET}`;
+  return `${ESC}[38;2;${fr};${fg_};${fb}m${ESC}[48;2;${br};${bg_};${bb}m${text}${sgrDefault()}`;
 }
 
 function hideCursor(): string {
@@ -106,14 +227,16 @@ function showCursor(): string {
   return `${ESC}[?25h`;
 }
 function altEnter(): string {
-  return `${ESC}[?1049h${ESC}[H${ESC}[2J`;
+  // Enter alt screen already in our default FG/BG
+  return `${ESC}[?1049h${sgrDefault()}${ESC}[H${ESC}[2J`;
 }
 function altLeave(): string {
-  return `${ESC}[?1049l`;
+  return `${ESC}[0m${ESC}[?1049l`;
 }
 function move(row: number, col = 1): string {
   return `${ESC}[${row};${col}H`;
 }
+/** Erase line using current (canvas) background */
 function clearLine(): string {
   return `${ESC}[2K`;
 }
@@ -145,7 +268,7 @@ function visWidth(s: string): number {
 
 function clipAnsi(s: string, maxCols: number): string {
   const limit = Math.max(0, maxCols);
-  if (visWidth(s) <= limit) return s.includes("\x1b[0m") ? s : s + RESET;
+  if (visWidth(s) <= limit) return s + sgrDefault();
   let out = "";
   let w = 0;
   let i = 0;
@@ -166,13 +289,15 @@ function clipAnsi(s: string, maxCols: number): string {
     w += cw;
     i += ch.length;
   }
-  return out + "…" + RESET;
+  return out + "…" + sgrDefault();
 }
 
 function padAnsi(s: string, width: number): string {
   const clipped = clipAnsi(s, width);
   const pad = width - visWidth(clipped);
-  return clipped + (pad > 0 ? " ".repeat(pad) : "");
+  // Trailing spaces must keep canvas BG (not terminal white)
+  if (pad <= 0) return clipped;
+  return clipped + fg(theme.text, " ".repeat(pad));
 }
 
 function statusChip(h: SessionHealth): string {
@@ -218,6 +343,10 @@ interface Layout {
   cols: number;
   rows: number;
   split: boolean;
+  /** Left tag rail width */
+  tagW: number;
+  /** 1-based column where session table starts */
+  listCol: number;
   listW: number;
   detailW: number;
   detailCol: number;
@@ -225,28 +354,22 @@ interface Layout {
   pathW: number;
   page: number;
   rowBrand: number;
-  rowRuleBrand: number; // brand ↔ table
+  rowRuleBrand: number;
   rowColHead: number;
-  rowRuleHead: number; // header ↔ data
+  rowRuleHead: number;
   rowList0: number;
   rowDetail0: number;
-  rowRuleFoot: number; // table ↔ footer
+  rowRuleFoot: number;
   rowFooter: number;
   detailBodyRows: number;
 }
 
 /**
- * Vertical rhythm (1-based rows):
- *   brand
- *   ════  ruleBrand   brand ↔ table
- *   colHead | detail top
- *   ────  ruleHead    header ↔ data
- *   list… | detail body
- *   ────  ruleFoot    content ↔ footer
- *   footer
+ * Geometry:  [ tags | list | detail? ]
+ * Vertical: brand / rules / colHead / list / footer
  */
 function computeLayout(cols: number, rows: number): Layout {
-  const split = cols >= 110;
+  const split = cols >= 120;
   const rowBrand = 1;
   const rowRuleBrand = 2;
   const rowColHead = 3;
@@ -254,15 +377,18 @@ function computeLayout(cols: number, rows: number): Layout {
   const rowList0 = 5;
   const rowFooter = rows;
   const rowRuleFoot = rows - 1;
-  // chrome: brand, ruleB, colHead, ruleH, ruleF, footer = 6
   const chrome = 6;
+  const tagW = Math.min(14, Math.max(11, Math.floor(cols * 0.12)));
+  const gutter = 1;
+  const afterTag = Math.max(40, cols - tagW - gutter);
+  const listCol = tagW + gutter + 1;
 
   if (split) {
-    let detailW = Math.min(42, Math.max(34, Math.floor(cols * 0.32)));
-    let listW = cols - detailW - 1;
-    if (listW < LC_FIXED + 20) {
-      listW = LC_FIXED + 20;
-      detailW = Math.max(28, cols - listW - 1);
+    let detailW = Math.min(40, Math.max(32, Math.floor(afterTag * 0.34)));
+    let listW = afterTag - detailW - gutter;
+    if (listW < LC_FIXED + 16) {
+      listW = LC_FIXED + 16;
+      detailW = Math.max(26, afterTag - listW - gutter);
     }
     const rest = Math.max(12, listW - LC_FIXED);
     const titleW = Math.max(10, Math.floor(rest * 0.52));
@@ -272,9 +398,11 @@ function computeLayout(cols: number, rows: number): Layout {
       cols,
       rows,
       split: true,
+      tagW,
+      listCol,
       listW,
       detailW,
-      detailCol: listW + 2,
+      detailCol: listCol + listW + 1,
       titleW,
       pathW,
       page,
@@ -291,18 +419,21 @@ function computeLayout(cols: number, rows: number): Layout {
   }
 
   const detailBodyRows = 7;
-  const detailBox = 2 + detailBodyRows; // top + body + bot, bot shares ruleFoot-ish
+  const detailBox = 2 + detailBodyRows;
   const page = Math.max(5, rows - chrome - detailBox + 1);
-  const rest = Math.max(12, cols - LC_FIXED);
+  const listW = afterTag;
+  const rest = Math.max(12, listW - LC_FIXED);
   const titleW = Math.max(10, Math.floor(rest * 0.55));
   const pathW = Math.max(8, rest - titleW);
   return {
     cols,
     rows,
     split: false,
-    listW: cols,
-    detailW: cols,
-    detailCol: 1,
+    tagW,
+    listCol,
+    listW,
+    detailW: listW,
+    detailCol: listCol,
     titleW,
     pathW,
     page,
@@ -350,6 +481,29 @@ export async function runRawTui(
   let cursor = 0;
   let offset = 0;
   let statusLine = "";
+  /** Focus: session table | left tag rail | right detail (chat scroll) */
+  let focusPane: "sessions" | "tags" | "detail" = "sessions";
+  /** null = all */
+  let tagFilter: string | null = null;
+  let tagCursor = 0;
+  let tagOffset = 0;
+  /** t — assign tag to current session via left rail */
+  let tagAssignMode = false;
+  let tagAssignCursor = 0;
+  let tagAssignBuf = "";
+  let tagAssignKey: string | null = null;
+  /** :help overlay */
+  let helpMode = false;
+  let helpOffset = 0;
+  /**
+   * Detail panel: meta (id/cmd) vs chat transcript.
+   * Enter opens chat (近→远, newest first); Esc closes when focus=detail.
+   */
+  let detailView: "meta" | "chat" = "meta";
+  let chatTurns: TranscriptTurn[] = [];
+  let chatLines: string[] = []; // pre-wrapped display lines
+  let chatOffset = 0;
+  let chatSessionKey: string | null = null;
   /** dd marks for real delete on :wq */
   const pendingDelete = new Map<string, SessionRecord>();
   const undoStack: SessionRecord[] = [];
@@ -363,20 +517,42 @@ export async function runRawTui(
     return `${s.source}:${s.id}`;
   }
 
+  /** Sidebar labels: index 0 = all, then sorted tags */
+  function tagRailLabels(): string[] {
+    return ["all", ...listTags()];
+  }
+
+  function clampTagScroll(): void {
+    const n = tagRailLabels().length;
+    if (tagCursor >= n) tagCursor = Math.max(0, n - 1);
+    if (tagCursor < tagOffset) tagOffset = tagCursor;
+    if (tagCursor >= tagOffset + layout.page)
+      tagOffset = tagCursor - layout.page + 1;
+    tagOffset = Math.max(0, Math.min(Math.max(0, n - layout.page), tagOffset));
+  }
+
   function filteredList(): SessionRecord[] {
     const sourceFilter = SOURCES[sourceIdx];
     const healthFilter = HEALTH_FILTERS[healthIdx];
     const q = filter.trim().toLowerCase();
-    return allSessions.filter((s) => {
+    const out = allSessions.filter((s) => {
       if (pendingDelete.has(sessionKey(s))) return false;
       if (sourceFilter !== "all" && s.source !== sourceFilter) return false;
       if (healthFilter !== "all" && healthOf(s) !== healthFilter) return false;
+      if (tagFilter != null && sessionTag(s) !== tagFilter) return false;
       if (!q) return true;
-      return [s.title, s.id, s.cwd ?? "", s.source]
+      return [s.title, s.id, s.cwd ?? "", s.source, sessionTag(s) ?? ""]
         .join(" ")
         .toLowerCase()
         .includes(q);
     });
+    out.sort((a, b) => {
+      const sa = isStarred(a) ? 0 : 1;
+      const sb = isStarred(b) ? 0 : 1;
+      if (sa !== sb) return sa - sb;
+      return sortKeyLastActive(b.lastActive) - sortKeyLastActive(a.lastActive);
+    });
+    return out;
   }
 
   let list = filteredList();
@@ -412,11 +588,18 @@ export async function runRawTui(
     width: number,
     content: string,
   ): void {
-    write(move(row, col) + padAnsi(content, width));
+    write(move(row, col) + sgrDefault() + padAnsi(content, width));
   }
 
   function paintFullRow(row: number, content: string): void {
-    write(move(row, 1) + clearLine() + padAnsi(content, layout.cols));
+    // Set canvas BG before erase so 2K fills dark, not white
+    write(
+      move(row, 1) +
+        sgrDefault() +
+        clearLine() +
+        move(row, 1) +
+        padAnsi(content, layout.cols),
+    );
   }
 
   function pathCellPlain(s: SessionRecord): string {
@@ -459,7 +642,9 @@ export async function runRawTui(
     const s = list[abs];
     const h = healthOf(s);
     const isMulti = multiSelect.has(sessionKey(s));
+    const starred = isStarred(s);
     const editing = renameMode && isCursor;
+    // mark: cursor + multi only (star has its own column)
     const markPlain = isCursor
       ? isMulti
         ? "▌*"
@@ -467,6 +652,9 @@ export async function runRawTui(
       : isMulti
         ? " *"
         : "  ";
+    // star: padded " ★ " so it breathes away from STATUS
+    const starPlain = padEndWidth(starred ? "★" : "", LC.star);
+    const gapStar = " ".repeat(LC.gs);
     const statusPlain = padEndWidth(
       h === "ok" ? "OK" : h === "empty" ? "Empty" : "Missing",
       LC.status,
@@ -474,9 +662,17 @@ export async function runRawTui(
     const srcPlain = sourcePlain(s.source);
     const agePlain = padStartWidth(formatAge(s.lastActive, now), LC.age);
     const msgsPlain = padStartWidth(String(s.messageCount), LC.msgs);
+    const tg = sessionTag(s);
+    const titleRaw = s.title.replace(/\s+/g, " ");
+    const titleWithTag =
+      tg && !editing
+        ? truncateWidth(titleRaw, Math.max(4, layout.titleW - displayWidth(tg) - 2)) +
+          " " +
+          tg
+        : titleRaw;
     const titlePlain = editing
       ? titleRenameCell(layout.titleW)
-      : padEndWidth(s.title.replace(/\s+/g, " "), layout.titleW);
+      : padEndWidth(titleWithTag, layout.titleW);
     const pathPlain = pathCellPlain(s);
 
     const style =
@@ -488,20 +684,21 @@ export async function runRawTui(
             ? { fg: theme.multiFg, bg: theme.multiBg }
             : null;
 
+    const tailPlain =
+      statusPlain +
+      " ".repeat(LC.g1) +
+      srcPlain +
+      " ".repeat(LC.g2) +
+      agePlain +
+      " ".repeat(LC.g3) +
+      msgsPlain +
+      " ".repeat(LC.g4) +
+      titlePlain +
+      " ".repeat(LC.g5) +
+      pathPlain;
+
     if (style) {
-      const plain =
-        markPlain +
-        statusPlain +
-        " ".repeat(LC.g1) +
-        srcPlain +
-        " ".repeat(LC.g2) +
-        agePlain +
-        " ".repeat(LC.g3) +
-        msgsPlain +
-        " ".repeat(LC.g4) +
-        titlePlain +
-        " ".repeat(LC.g5) +
-        pathPlain;
+      const plain = markPlain + starPlain + gapStar + tailPlain;
       return fgBg(style.fg, style.bg, padEndWidth(plain, layout.listW));
     }
 
@@ -509,8 +706,14 @@ export async function runRawTui(
       ? fg(theme.missing, pathPlain)
       : fg(theme.dim, pathPlain);
 
+    const starColored = starred
+      ? fg(theme.star, padEndWidth("★", LC.star))
+      : " ".repeat(LC.star);
+
     return padAnsi(
       markPlain +
+        starColored +
+        gapStar +
         statusChip(h) +
         " ".repeat(LC.g1) +
         sourceCell(s.source) +
@@ -529,6 +732,8 @@ export async function runRawTui(
   function buildColHeader(): string {
     return padAnsi(
       "  " +
+        fg(theme.dim, padEndWidth("★", LC.star)) +
+        " ".repeat(LC.gs) +
         fg(theme.dim, padEndWidth("STATUS", LC.status)) +
         " ".repeat(LC.g1) +
         fg(theme.dim, padEndWidth("SOURCE", LC.source)) +
@@ -547,14 +752,111 @@ export async function runRawTui(
   function paintListSlot(slot: number): void {
     const abs = offset + slot;
     const row = layout.rowList0 + slot;
-    paintCell(row, 1, layout.listW, buildListRow(abs, abs === cursor));
+    const focused = focusPane === "sessions" && !tagAssignMode;
+    paintCell(
+      row,
+      layout.listCol,
+      layout.listW,
+      buildListRow(abs, focused && abs === cursor),
+    );
     if (layout.split) {
-      paintCell(row, layout.listW + 1, 1, fg(theme.border, "│"));
+      paintCell(
+        row,
+        layout.listCol + layout.listW,
+        1,
+        fg(theme.border, "│"),
+      );
     }
   }
 
   function paintAllList(): void {
     for (let i = 0; i < layout.page; i++) paintListSlot(i);
+  }
+
+  /**
+   * Left tag rail.
+   * Browse: all + tags; highlight filter.
+   * Assign (t): [new] input slot + tags + (clear).
+   */
+  function paintTagRail(): void {
+    const L = layout;
+    const tw = L.tagW;
+    const focused = focusPane === "tags" || tagAssignMode;
+
+    // header cell on col head row
+    const headLabel = tagAssignMode ? " assign " : " tags ";
+    paintCell(
+      L.rowColHead,
+      1,
+      tw,
+      fgBg(
+        focused ? theme.brandNameFg : theme.brandTagFg,
+        focused ? theme.brandNameBg : theme.brandTagBg,
+        padEndWidth(headLabel, tw),
+      ),
+    );
+    paintCell(L.rowColHead, tw + 1, 1, fg(theme.border, "│"));
+
+    if (tagAssignMode) {
+      const tags = listTags();
+      // items: 0=new, 1..tags, last=clear
+      const items: Array<{ kind: "new" | "tag" | "clear"; label: string }> = [
+        { kind: "new", label: tagAssignBuf ? `+${tagAssignBuf}` : "+ new…" },
+        ...tags.map((t) => ({ kind: "tag" as const, label: t })),
+        { kind: "clear", label: "(clear)" },
+      ];
+      const n = items.length;
+      if (tagAssignCursor >= n) tagAssignCursor = Math.max(0, n - 1);
+      for (let i = 0; i < L.page; i++) {
+        const abs = i; // no scroll for assign for simplicity if short; scroll if needed
+        const row = L.rowList0 + i;
+        const item = items[abs];
+        if (!item) {
+          paintCell(row, 1, tw, " ".repeat(tw));
+          paintCell(row, tw + 1, 1, fg(theme.border, "│"));
+          continue;
+        }
+        const sel = abs === tagAssignCursor;
+        let text = padEndWidth(" " + item.label, tw);
+        if (item.kind === "new" && sel) {
+          text = padEndWidth(" +" + tagAssignBuf + "█", tw);
+        }
+        const cell = sel
+          ? fgBg(theme.selectFg, theme.selectBg, text)
+          : item.kind === "clear"
+            ? fg(theme.dim, text)
+            : fg(theme.text, text);
+        paintCell(row, 1, tw, cell);
+        paintCell(row, tw + 1, 1, fg(theme.border, "│"));
+      }
+      return;
+    }
+
+    // browse mode
+    const labels = tagRailLabels();
+    clampTagScroll();
+    for (let i = 0; i < L.page; i++) {
+      const abs = tagOffset + i;
+      const row = L.rowList0 + i;
+      const label = labels[abs];
+      if (label == null) {
+        paintCell(row, 1, tw, " ".repeat(tw));
+        paintCell(row, tw + 1, 1, fg(theme.border, "│"));
+        continue;
+      }
+      const isAll = label === "all";
+      const active =
+        (isAll && tagFilter == null) || (!isAll && tagFilter === label);
+      const sel = focusPane === "tags" && abs === tagCursor;
+      const mark = active ? "●" : " ";
+      const text = padEndWidth(` ${mark} ${label}`, tw);
+      let cell: string;
+      if (sel) cell = fgBg(theme.selectFg, theme.selectBg, text);
+      else if (active) cell = fg(theme.accent, text);
+      else cell = fg(theme.dim, text);
+      paintCell(row, 1, tw, cell);
+      paintCell(row, tw + 1, 1, fg(theme.border, "│"));
+    }
   }
 
   /**
@@ -603,8 +905,17 @@ export async function runRawTui(
         name,
         tag(" move ") + key("↑↓"),
         tag(" row ") +
+          key("Tab") +
+          hint(" tags") +
+          mid +
+          key("t") +
+          hint(" set-tag") +
+          mid +
           key("Space") +
           hint(" select") +
+          mid +
+          key("*") +
+          hint(" star") +
           mid +
           key("i") +
           hint(" rename") +
@@ -630,7 +941,14 @@ export async function runRawTui(
       [
         name,
         tag(" move ") + key("↑↓"),
-        tag(" row ") + key("Space") + mid + key("i") + mid + key("dd"),
+        tag(" row ") +
+          key("Space") +
+          mid +
+          key("*") +
+          mid +
+          key("i") +
+          mid +
+          key("dd"),
         tag(" bulk ") +
           key(":empty") +
           mid +
@@ -644,7 +962,14 @@ export async function runRawTui(
       [
         name,
         tag("mv") + key("↑↓"),
-        tag("row") + key("Sp") + mid + key("i") + mid + key("dd"),
+        tag("row") +
+          key("Sp") +
+          mid +
+          key("*") +
+          mid +
+          key("i") +
+          mid +
+          key("dd"),
         tag("bulk") + key(":e") + mid + key(":m") + mid + key(":bad"),
         tag("y") + key("y") + mid + tag("/") + key("/"),
         tag("q") + key(":q") + mid + key(":wq"),
@@ -653,7 +978,7 @@ export async function runRawTui(
       [
         name,
         key("↑↓"),
-        key("Space") + mid + key("i") + mid + key("dd"),
+        key("Space") + mid + key("*") + mid + key("i") + mid + key("dd"),
         key(":e") + mid + key(":m") + mid + key(":bad"),
         key("y") + mid + key("/"),
         key(":q") + mid + key(":wq"),
@@ -685,51 +1010,185 @@ export async function runRawTui(
     kind: "brand" | "head" | "foot",
   ): void {
     const L = layout;
-    if (!L.split) {
-      const ch = kind === "brand" ? "═" : "─";
-      const color = kind === "brand" ? theme.border : theme.line;
-      paintFullRow(row, fg(color, ch.repeat(L.cols)));
+    const tw = L.tagW;
+    const lw = L.listW;
+    const dw = L.detailW;
+    const ch = kind === "brand" ? "═" : "─";
+    const color = kind === "brand" ? theme.border : theme.line;
+
+    if (kind === "brand") {
+      if (L.split) {
+        paintFullRow(
+          row,
+          fg(
+            theme.border,
+            "═".repeat(tw) + "╤" + "═".repeat(lw) + "╤" + "═".repeat(dw),
+          ),
+        );
+      } else {
+        paintFullRow(
+          row,
+          fg(theme.border, "═".repeat(tw) + "╤" + "═".repeat(lw)),
+        );
+      }
       return;
     }
 
-    const lw = L.listW;
-    const dw = L.detailW;
-    if (kind === "brand") {
-      // ═══════════════╤════════════
-      paintFullRow(
-        row,
-        fg(theme.border, "═".repeat(lw) + "╤" + "═".repeat(dw)),
-      );
-      return;
-    }
-    if (kind === "head") {
-      // under column header; join detail pane
-      paintCell(row, 1, lw, fg(theme.line, "─".repeat(lw)));
-      paintCell(row, lw + 1, 1, fg(theme.border, "┼"));
+    // head / foot across tags | list | detail
+    const join =
+      kind === "head" ? "┼" : "┴";
+    const endCap = kind === "head" ? "┤" : "┘";
+    paintCell(row, 1, tw, fg(color, ch.repeat(tw)));
+    paintCell(row, tw + 1, 1, fg(theme.border, join));
+    paintCell(row, L.listCol, lw, fg(color, ch.repeat(lw)));
+    if (L.split) {
+      paintCell(row, L.listCol + lw, 1, fg(theme.border, join));
       paintCell(
         row,
         L.detailCol,
         dw,
-        fg(theme.border, "─".repeat(Math.max(0, dw - 1)) + "┤"),
+        fg(theme.border, ch.repeat(Math.max(0, dw - 1)) + endCap),
       );
+    }
+  }
+
+  function wrapPlain(text: string, width: number): string[] {
+    const out: string[] = [];
+    for (const para of text.split("\n")) {
+      if (!para) {
+        out.push("");
+        continue;
+      }
+      let rest = para;
+      while (rest.length > 0) {
+        if (displayWidth(rest) <= width) {
+          out.push(rest);
+          break;
+        }
+        let chunk = "";
+        let w = 0;
+        for (const ch of rest) {
+          const cw = displayWidth(ch);
+          if (w + cw > width && chunk) break;
+          chunk += ch;
+          w += cw;
+        }
+        if (!chunk) {
+          chunk = rest[0] ?? "";
+        }
+        out.push(chunk);
+        rest = rest.slice(chunk.length);
+      }
+    }
+    return out;
+  }
+
+  /** Build chat display lines (newest first). */
+  function rebuildChatLines(innerW: number): void {
+    const lines: string[] = [];
+    if (chatTurns.length === 0) {
+      lines.push(fg(theme.dim, "(no messages)"));
+      chatLines = lines;
       return;
     }
-    // foot rule above status bar
-    paintCell(row, 1, lw, fg(theme.line, "─".repeat(lw)));
-    paintCell(row, lw + 1, 1, fg(theme.border, "┴"));
-    paintCell(
-      row,
-      L.detailCol,
-      dw,
-      fg(theme.border, "─".repeat(Math.max(0, dw - 1)) + "┘"),
+    lines.push(
+      fg(
+        theme.dim,
+        padEndWidth(`Chat · ${chatTurns.length} turns · near→far`, innerW),
+      ),
     );
+    lines.push(fg(theme.line, "─".repeat(Math.min(innerW, 24))));
+    for (const turn of chatTurns) {
+      const label = roleLabel(turn.role);
+      const color =
+        turn.role === "user"
+          ? theme.accent
+          : turn.role === "assistant"
+            ? theme.title
+            : theme.dim;
+      lines.push(fg(color, padEndWidth(`▸ ${label}`, innerW)));
+      for (const wl of wrapPlain(turn.text, Math.max(4, innerW - 1))) {
+        lines.push(fg(theme.text, padEndWidth(wl, innerW)));
+      }
+      lines.push("");
+    }
+    chatLines = lines;
+  }
+
+  function openChatForCursor(): void {
+    const s = list[cursor];
+    if (!s) return;
+    if (focusPane === "tags") return;
+    statusLine = "loading chat…";
+    paintFooter();
+    chatTurns = readTranscript(s);
+    chatSessionKey = sessionKey(s);
+    chatOffset = 0;
+    detailView = "chat";
+    // Right pane is view-only; focus detail only so ↑↓ scroll the transcript.
+    focusPane = "detail";
+    const inner = Math.max(8, layout.detailW - 2);
+    rebuildChatLines(inner);
+    statusLine =
+      chatTurns.length === 0
+        ? "no messages · Esc → sessions"
+        : `chat ${chatTurns.length} · ↑↓ scroll · Esc → sessions`;
+    fullPaint();
+  }
+
+  /** Reset chat state without painting (caller paints). Always leave focus on sessions. */
+  function resetChatState(): void {
+    detailView = "meta";
+    chatTurns = [];
+    chatLines = [];
+    chatOffset = 0;
+    chatSessionKey = null;
+    // Esc / list move: always return to middle session column
+    if (focusPane === "detail") focusPane = "sessions";
+  }
+
+  /** Close chat view and put focus back on the middle session list. */
+  function closeChat(): void {
+    resetChatState();
+    focusPane = "sessions";
+    statusLine = "";
+    fullPaint();
+  }
+
+  /** If list cursor left the open chat session, drop chat → meta. */
+  function dropChatIfCursorMoved(): void {
+    if (detailView !== "chat") return;
+    const s = list[cursor];
+    if (!s || sessionKey(s) !== chatSessionKey) {
+      resetChatState();
+    }
+  }
+
+  function chatMaxOffset(): number {
+    return Math.max(0, chatLines.length - layout.page);
+  }
+
+  function scrollChat(delta: number): void {
+    if (detailView !== "chat") return;
+    const maxOff = chatMaxOffset();
+    chatOffset = Math.max(0, Math.min(maxOff, chatOffset + delta));
+    paintDetail();
+    paintFooter();
+    write(move(layout.rowFooter, 1));
   }
 
   /**
-   * Detail: only action payload the table lacks.
-   * No tutorial Notes (command is enough). No Store/Created clutter.
+   * Detail meta: id / tag / command.
+   * Detail chat: transcript near→far (newest first), scrollable.
    */
   function detailBody(innerW: number): string[] {
+    if (detailView === "chat") {
+      if (chatLines.length === 0) rebuildChatLines(innerW);
+      const maxOff = Math.max(0, chatLines.length - layout.page);
+      if (chatOffset > maxOff) chatOffset = maxOff;
+      return chatLines.slice(chatOffset, chatOffset + layout.page);
+    }
+
     const s = list[cursor] ?? null;
     const lines: string[] = [];
     if (!s) {
@@ -745,15 +1204,22 @@ export async function runRawTui(
     };
 
     pushLabel("ID");
-    push(s.id, theme.title);
+    push(s.id, theme.text);
     lines.push("");
+
+    const tg = sessionTag(s);
+    if (tg) {
+      pushLabel("Tag");
+      push(tg, theme.accent);
+      lines.push("");
+    }
 
     pushLabel("Resume command  (y copy)");
     let rest = resumeInfo(s).command;
     let guard = 0;
     while (rest && guard++ < 6) {
       if (displayWidth(rest) <= innerW) {
-        push(rest, theme.action);
+        push(rest, theme.text);
         break;
       }
       let chunk = "";
@@ -765,11 +1231,17 @@ export async function runRawTui(
         w += cw;
       }
       if (!chunk) break;
-      push(chunk, theme.action);
+      push(chunk, theme.text);
       rest = rest.slice(chunk.length);
     }
+    lines.push("");
+    push("Enter · open chat (near→far)", theme.dim);
 
     return lines;
+  }
+
+  function detailHeaderLabel(): string {
+    return detailView === "chat" ? " Chat" : " Detail";
   }
 
   function paintDetail(): void {
@@ -780,7 +1252,6 @@ export async function runRawTui(
     const col = L.detailCol;
 
     if (L.split) {
-      // gutter already has │; paint body + right border only
       for (let i = 0; i < L.page; i++) {
         paintCell(
           L.rowDetail0 + i,
@@ -792,7 +1263,10 @@ export async function runRawTui(
       }
     } else {
       const top = L.rowDetail0;
-      paintFullRow(top, fg(theme.border, boxTop("Detail", dw)));
+      paintFullRow(
+        top,
+        fg(theme.border, boxTop(detailView === "chat" ? "Chat" : "Detail", dw)),
+      );
       for (let i = 0; i < L.detailBodyRows; i++) {
         paintFullRow(
           top + 1 + i,
@@ -808,9 +1282,70 @@ export async function runRawTui(
     }
   }
 
+  function buildHelpLines(): string[] {
+    const lines: string[] = [];
+    lines.push("Keyboard shortcuts");
+    lines.push("");
+    for (const g of HELP_GROUPS) {
+      lines.push(g.title);
+      for (const [k, desc] of g.keys) {
+        lines.push(`  ${k.padEnd(18)} ${desc}`);
+      }
+      lines.push("");
+    }
+    lines.push("Esc / q / Enter  ·  close help");
+    return lines;
+  }
+
+  function paintHelpOverlay(): void {
+    const lines = buildHelpLines();
+    const top = layout.rowColHead;
+    const bot = layout.rowRuleFoot;
+    const height = Math.max(1, bot - top);
+    const maxOff = Math.max(0, lines.length - height);
+    if (helpOffset > maxOff) helpOffset = maxOff;
+    if (helpOffset < 0) helpOffset = 0;
+
+    for (let i = 0; i < height; i++) {
+      const row = top + i;
+      const raw = lines[helpOffset + i] ?? "";
+      const isHead =
+        raw.length > 0 &&
+        !raw.startsWith("  ") &&
+        raw !== "Keyboard shortcuts" &&
+        !raw.startsWith("Esc");
+      const isTitle = raw === "Keyboard shortcuts";
+      let cell: string;
+      if (isTitle) cell = fg(theme.accent, padEndWidth(raw, layout.cols));
+      else if (isHead) cell = fgBg(theme.brandNameFg, theme.brandNameBg, padEndWidth(` ${raw} `, layout.cols));
+      else cell = fg(theme.text, padEndWidth(raw, layout.cols));
+      paintFullRow(row, cell);
+    }
+  }
+
   function paintFooter(): void {
+    if (helpMode) {
+      paintFullRow(
+        layout.rowFooter,
+        fg(theme.dim, " ") +
+          fgBg(theme.brandNameFg, theme.brandNameBg, " HELP ") +
+          fg(theme.dim, " ↑↓ scroll  ·  Esc / q / Enter close"),
+      );
+      return;
+    }
+    if (tagAssignMode) {
+      paintFullRow(
+        layout.rowFooter,
+        fg(theme.dim, " ") +
+          fgBg(theme.editFg, theme.editBg, " TAG ") +
+          fg(
+            theme.dim,
+            " ↑↓ pick  ·  type in +new  ·  Enter assign  ·  Esc cancel",
+          ),
+      );
+      return;
+    }
     if (renameMode) {
-      // Text is edited in the TITLE column; footer is only a short hint
       paintFullRow(
         layout.rowFooter,
         fg(theme.dim, " ") +
@@ -846,7 +1381,11 @@ export async function runRawTui(
       return;
     }
     let msg = "";
-    if (filter) msg = `filter "${filter}"`;
+    if (focusPane === "tags") msg = "tags focus · Tab→sessions · ↑↓ filter";
+    if (focusPane === "detail" && detailView === "chat")
+      msg = "view chat · ↑↓ scroll · Esc → sessions";
+    if (tagFilter) msg += (msg ? " · " : "") + `tag:${tagFilter}`;
+    if (filter) msg += (msg ? " · " : "") + `filter "${filter}"`;
     if (sourceIdx !== 0) msg += (msg ? " · " : "") + SOURCES[sourceIdx];
     if (healthIdx !== 0)
       msg +=
@@ -865,45 +1404,65 @@ export async function runRawTui(
         ? fg(theme.accent, " " + truncateWidth(msg, layout.cols - 2))
         : fg(
             theme.dim,
-            " Space select · i rename · dd delete · :q quit · :wq",
+            " Enter chat  ·  Tab focus  ·  t tag  ·  * star  ·  i rename  ·  :wq",
           ),
     );
   }
 
   function fullPaint(): void {
-    write(move(1, 1) + `${ESC}[0J`);
+    // Flood canvas dark first (light terminals would otherwise stay white)
+    write(move(1, 1) + sgrDefault() + `${ESC}[2J` + move(1, 1));
     paintBrand();
     paintRule(layout.rowRuleBrand, "brand");
 
+    if (helpMode) {
+      paintHelpOverlay();
+      paintRule(layout.rowRuleFoot, "foot");
+      paintFooter();
+      write(move(layout.rowFooter, 1));
+      return;
+    }
+
+    paintTagRail();
+
     if (layout.split) {
-      paintCell(layout.rowColHead, 1, layout.listW, buildColHeader());
-      // vertical join between ╤ and ┼
-      paintCell(layout.rowColHead, layout.listW + 1, 1, fg(theme.border, "│"));
-      // detail header: label + right border
       paintCell(
         layout.rowColHead,
-        layout.detailCol,
-        layout.detailW,
-        fg(theme.accent, padEndWidth(" Detail", layout.detailW - 1)) +
-          fg(theme.border, "│"),
+        layout.listCol,
+        layout.listW,
+        buildColHeader(),
       );
+      paintCell(
+        layout.rowColHead,
+        layout.listCol + layout.listW,
+        1,
+        fg(theme.border, "│"),
+      );
+      // detail header: label + right border (highlight when chat focus)
+      {
+        const label = detailHeaderLabel();
+        const headColor =
+          focusPane === "detail" ? theme.title : theme.accent;
+        paintCell(
+          layout.rowColHead,
+          layout.detailCol,
+          layout.detailW,
+          fg(headColor, padEndWidth(label, layout.detailW - 1)) +
+            fg(theme.border, "│"),
+        );
+      }
       paintRule(layout.rowRuleHead, "head");
     } else {
-      paintFullRow(layout.rowColHead, buildColHeader());
+      paintCell(
+        layout.rowColHead,
+        layout.listCol,
+        layout.listW,
+        buildColHeader(),
+      );
       paintRule(layout.rowRuleHead, "head");
     }
 
     paintAllList();
-    if (layout.split) {
-      for (let i = 0; i < layout.page; i++) {
-        paintCell(
-          layout.rowList0 + i,
-          layout.listW + 1,
-          1,
-          fg(theme.border, "│"),
-        );
-      }
-    }
     paintDetail();
     paintRule(layout.rowRuleFoot, "foot");
     paintFooter();
@@ -911,18 +1470,10 @@ export async function runRawTui(
   }
 
   function paintSelectionChange(prevCursor: number, prevOffset: number): void {
+    // List cursor may have left the open chat session
+    dropChatIfCursorMoved();
     if (offset !== prevOffset) {
       paintAllList();
-      if (layout.split) {
-        for (let i = 0; i < layout.page; i++) {
-          paintCell(
-            layout.rowList0 + i,
-            layout.listW + 1,
-            1,
-            fg(theme.border, "│"),
-          );
-        }
-      }
     } else {
       const a = prevCursor - offset;
       const b = cursor - offset;
@@ -930,6 +1481,20 @@ export async function runRawTui(
       if (b >= 0 && b < layout.page && b !== a) paintListSlot(b);
     }
     paintBrand();
+    paintTagRail();
+    // re-paint detail header label if chat closed
+    if (layout.split) {
+      const label = detailHeaderLabel();
+      const headColor =
+        focusPane === "detail" ? theme.title : theme.accent;
+      paintCell(
+        layout.rowColHead,
+        layout.detailCol,
+        layout.detailW,
+        fg(headColor, padEndWidth(label, layout.detailW - 1)) +
+          fg(theme.border, "│"),
+      );
+    }
     paintDetail();
     paintFooter();
     write(move(layout.rowFooter, 1));
@@ -956,21 +1521,31 @@ export async function runRawTui(
 
   /**
    * dd: mark for delete (no confirm). Real unlink on :wq only.
-   * If multi-select is non-empty, mark every selected item; else current row.
+   * Starred sessions cannot be marked — unstar (*) first.
    */
   function doDeleteMark(): void {
-    const targets: SessionRecord[] = [];
+    const candidates: SessionRecord[] = [];
     if (multiSelect.size > 0) {
       for (const s of allSessions) {
         const k = sessionKey(s);
-        if (multiSelect.has(k) && !pendingDelete.has(k)) targets.push(s);
+        if (multiSelect.has(k) && !pendingDelete.has(k)) candidates.push(s);
       }
     } else {
       const s = list[cursor];
-      if (s) targets.push(s);
+      if (s) candidates.push(s);
     }
-    if (targets.length === 0) {
+    if (candidates.length === 0) {
       statusLine = "nothing to delete";
+      paintFooter();
+      return;
+    }
+    const starred = candidates.filter((s) => isStarred(s));
+    const targets = candidates.filter((s) => !isStarred(s));
+    if (targets.length === 0) {
+      statusLine =
+        starred.length === 1
+          ? "starred — press * to unstar before dd"
+          : `${starred.length} starred — unstar (*) before dd`;
       paintFooter();
       return;
     }
@@ -980,11 +1555,109 @@ export async function runRawTui(
       undoStack.push(s);
       multiSelect.delete(k);
     }
+    const skip =
+      starred.length > 0 ? ` · skipped ${starred.length} starred` : "";
     statusLine =
       targets.length === 1
-        ? `marked delete ${shortId(targets[0].id, 8)}  ·  u undo  ·  :wq apply`
-        : `marked delete ${targets.length} sessions  ·  u undo  ·  :wq apply`;
+        ? `marked delete ${shortId(targets[0].id, 8)}  ·  u undo  ·  :wq apply${skip}`
+        : `marked delete ${targets.length} sessions  ·  u undo  ·  :wq apply${skip}`;
     rebuildList();
+    fullPaint();
+  }
+
+  function startTagAssign(): void {
+    if (focusPane !== "sessions") {
+      focusPane = "sessions";
+    }
+    const s = list[cursor];
+    if (!s) return;
+    clearPending();
+    tagAssignMode = true;
+    tagAssignKey = sessionKey(s);
+    tagAssignCursor = 0;
+    tagAssignBuf = "";
+    statusLine = "";
+    fullPaint();
+  }
+
+  function cancelTagAssign(): void {
+    tagAssignMode = false;
+    tagAssignBuf = "";
+    tagAssignKey = null;
+    statusLine = "tag assign cancelled";
+    fullPaint();
+  }
+
+  function commitTagAssign(): void {
+    if (!tagAssignKey) {
+      cancelTagAssign();
+      return;
+    }
+    const [source, ...idParts] = tagAssignKey.split(":");
+    const id = idParts.join(":");
+    const tags = listTags();
+    // 0 = new, 1..n = tags, n+1 = clear
+    let result: { ok: boolean; tag: string | null; error?: string };
+    if (tagAssignCursor === 0) {
+      if (!tagAssignBuf.trim()) {
+        statusLine = "type a tag name in +new";
+        paintFooter();
+        return;
+      }
+      result = setSessionTag(source!, id, tagAssignBuf);
+    } else if (tagAssignCursor === tags.length + 1) {
+      result = setSessionTag(source!, id, null);
+    } else {
+      const t = tags[tagAssignCursor - 1];
+      result = setSessionTag(source!, id, t ?? null);
+    }
+    tagAssignMode = false;
+    tagAssignBuf = "";
+    tagAssignKey = null;
+    if (!result.ok) {
+      statusLine = `tag failed: ${result.error ?? "unknown"}`;
+      fullPaint();
+      return;
+    }
+    // update memory
+    for (const a of allSessions) {
+      if (sessionKey(a) === `${source}:${id}`) {
+        if (result.tag) a.extra = { ...a.extra, tag: result.tag };
+        else if (a.extra) {
+          const { tag: _d, ...rest } = a.extra;
+          a.extra = rest;
+        }
+      }
+    }
+    statusLine = result.tag ? `tag → ${result.tag}` : "tag cleared";
+    rebuildList();
+    fullPaint();
+  }
+
+  /** * — toggle star (pin top; blocks dd until unstarred) */
+  function doToggleStar(): void {
+    const s = list[cursor];
+    if (!s) return;
+    const r = toggleStar(s.source, s.id);
+    if (!r.ok) {
+      statusLine = `star failed: ${r.error ?? "unknown"}`;
+      paintFooter();
+      return;
+    }
+    s.extra = { ...s.extra, starred: r.starred };
+    // keep allSessions in sync
+    const k = sessionKey(s);
+    for (const a of allSessions) {
+      if (sessionKey(a) === k) a.extra = { ...a.extra, starred: r.starred };
+    }
+    statusLine = r.starred
+      ? `starred ★  ·  pinned · cannot dd until * again`
+      : `unstarred  ·  dd allowed`;
+    rebuildList();
+    // keep focus on same session after re-sort
+    const idx = list.findIndex((x) => sessionKey(x) === k);
+    if (idx >= 0) cursor = idx;
+    clampScroll();
     fullPaint();
   }
 
@@ -1190,8 +1863,10 @@ export async function runRawTui(
         paintFooter();
         return;
       case "help":
-        statusLine = ":empty :missing :bad · :sel e|m|bad|none · :q · :q! · :wq";
-        paintFooter();
+        helpMode = true;
+        helpOffset = 0;
+        statusLine = "";
+        fullPaint();
         return;
       default:
         statusLine = `unknown :${cmdRaw.trim()}  ·  :help`;
@@ -1321,6 +1996,11 @@ export async function runRawTui(
     rows = stdout.rows || 24;
     layout = computeLayout(cols, rows);
     clampScroll();
+    if (detailView === "chat") {
+      const inner = Math.max(8, layout.detailW - 2);
+      rebuildChatLines(inner);
+      chatOffset = Math.min(chatOffset, chatMaxOffset());
+    }
     fullPaint();
   }
 
@@ -1330,7 +2010,10 @@ export async function runRawTui(
    */
   function refreshFromDisk(): void {
     if (!options.reload) return;
-    if (renameMode || cmdMode || filterMode) return;
+    if (renameMode || cmdMode || filterMode || tagAssignMode || helpMode)
+      return;
+    // Avoid clobbering chat scroll mid-read
+    if (focusPane === "detail" && detailView === "chat") return;
 
     const focusKey = list[cursor] ? sessionKey(list[cursor]!) : null;
     let fresh: SessionRecord[];
@@ -1355,6 +2038,7 @@ export async function runRawTui(
       if (idx >= 0) cursor = idx;
     }
     clampScroll();
+    dropChatIfCursorMoved();
     fullPaint();
   }
 
@@ -1386,6 +2070,42 @@ export async function runRawTui(
     const onKey = (_str: string | undefined, key: readline.Key): void => {
       const str = _str ?? "";
 
+      // ----- :help overlay (first) -----
+      if (helpMode) {
+        if (
+          key.name === "escape" ||
+          key.name === "return" ||
+          key.name === "q" ||
+          str === "q"
+        ) {
+          helpMode = false;
+          helpOffset = 0;
+          fullPaint();
+          return;
+        }
+        if (key.name === "up" || key.name === "k") {
+          helpOffset = Math.max(0, helpOffset - 1);
+          fullPaint();
+          return;
+        }
+        if (key.name === "down" || key.name === "j") {
+          helpOffset += 1;
+          fullPaint();
+          return;
+        }
+        if (key.name === "pageup" || (key.ctrl && key.name === "b")) {
+          helpOffset = Math.max(0, helpOffset - layout.page);
+          fullPaint();
+          return;
+        }
+        if (key.name === "pagedown" || (key.ctrl && key.name === "f")) {
+          helpOffset += layout.page;
+          fullPaint();
+          return;
+        }
+        return;
+      }
+
       // Ctrl-C does not quit (avoid losing pending deletes silently).
       if (key.ctrl && key.name === "c") {
         statusLine =
@@ -1399,17 +2119,74 @@ export async function runRawTui(
       // full page only (no ctrl-d/u half-page)
       if (key.ctrl && (key.name === "f" || str === "\u0006")) {
         clearPending();
+        if (focusPane === "detail" && detailView === "chat") {
+          scrollChat(layout.page);
+          return;
+        }
         goPage(1);
         return;
       }
       if (key.ctrl && (key.name === "b" || str === "\u0002")) {
         clearPending();
+        if (focusPane === "detail" && detailView === "chat") {
+          scrollChat(-layout.page);
+          return;
+        }
         goPage(-1);
         return;
       }
 
+      // ----- tag assign (t): left rail picker + new name -----
+      if (tagAssignMode) {
+        if (key.name === "escape" || str === "\x1b") {
+          cancelTagAssign();
+          return;
+        }
+        if (key.name === "return") {
+          commitTagAssign();
+          return;
+        }
+        const tags = listTags();
+        const nItems = tags.length + 2; // new + tags + clear
+        if (key.name === "up") {
+          tagAssignCursor = Math.max(0, tagAssignCursor - 1);
+          paintTagRail();
+          paintFooter();
+          return;
+        }
+        if (key.name === "down") {
+          tagAssignCursor = Math.min(nItems - 1, tagAssignCursor + 1);
+          paintTagRail();
+          paintFooter();
+          return;
+        }
+        if (tagAssignCursor === 0) {
+          if (key.name === "backspace") {
+            tagAssignBuf = tagAssignBuf.slice(0, -1);
+            paintTagRail();
+            paintFooter();
+            return;
+          }
+          if (key.ctrl && key.name === "u") {
+            tagAssignBuf = "";
+            paintTagRail();
+            paintFooter();
+            return;
+          }
+          if (str && !key.ctrl && !key.meta && str >= " ") {
+            // only allow slug chars
+            if (/[A-Za-z0-9_-]/.test(str)) {
+              tagAssignBuf += str.toLowerCase();
+              paintTagRail();
+              paintFooter();
+            }
+            return;
+          }
+        }
+        return;
+      }
+
       // ----- rename mode (i): type into TITLE column -----
-      // Esc once = leave insert (vim), keep content — handled first for snappy feel
       if (renameMode) {
         if (key.name === "escape" || str === "\x1b") {
           exitRenameKeep();
@@ -1424,13 +2201,11 @@ export async function runRawTui(
           paintRenameLive();
           return;
         }
-        // Ctrl-U clear buffer (vim-ish)
         if (key.ctrl && key.name === "u") {
           renameBuf = "";
           paintRenameLive();
           return;
         }
-        // Block navigation while editing title
         if (
           key.name === "up" ||
           key.name === "down" ||
@@ -1552,7 +2327,7 @@ export async function runRawTui(
         }
       }
 
-      // bare q does not quit (use :q / :wq); Esc clears multi-select if any
+      // bare q does not quit (use :q / :wq); Esc closes chat / clears multi-select
       if (key.name === "q") {
         statusLine =
           pendingDelete.size > 0
@@ -1562,6 +2337,11 @@ export async function runRawTui(
         return;
       }
       if (key.name === "escape" && !filterMode) {
+        // Chat is view-only: Esc always leaves right pane → middle sessions
+        if (detailView === "chat" || focusPane === "detail") {
+          closeChat();
+          return;
+        }
         if (multiSelect.size > 0) {
           clearMultiSelect();
           return;
@@ -1590,82 +2370,199 @@ export async function runRawTui(
         fullPaint();
         return;
       }
-      // Space: toggle multi-select
+      // Tab: sessions ↔ tags (chat is view-only; Esc leaves chat → sessions)
+      if (key.name === "tab") {
+        clearPending();
+        if (focusPane === "detail" || detailView === "chat") {
+          // Leave chat and land on middle session column
+          closeChat();
+          return;
+        }
+        if (focusPane === "sessions") {
+          focusPane = "tags";
+          clampTagScroll();
+        } else {
+          focusPane = "sessions";
+        }
+        fullPaint();
+        return;
+      }
+
+      // Space: toggle multi-select (sessions only)
       if (str === " " || key.name === "space") {
+        if (focusPane !== "sessions") return;
         clearPending();
         doToggleMultiSelect();
         return;
       }
-      // i: rename (insert) current session title
+      // * — star / unstar
+      if (str === "*") {
+        if (focusPane !== "sessions") return;
+        clearPending();
+        doToggleStar();
+        return;
+      }
+      // t — assign tag for current session (left rail)
+      if (str === "t") {
+        if (focusPane !== "sessions") return;
+        startTagAssign();
+        return;
+      }
+      // i: rename
       if (str === "i") {
+        if (focusPane !== "sessions") return;
         startRename();
         return;
       }
       if (str === "c") {
+        if (focusPane === "detail") return;
         filter = "";
         sourceIdx = 0;
         healthIdx = 0;
+        tagFilter = null;
+        tagCursor = 0;
+        tagOffset = 0;
         multiSelect.clear();
         statusLine = "";
         rebuildList();
+        dropChatIfCursorMoved();
         fullPaint();
         return;
       }
-      if (str === "s" || key.name === "tab") {
+      if (str === "s") {
+        if (focusPane === "detail") return;
         sourceIdx = (sourceIdx + 1) % SOURCES.length;
         cursor = 0;
         offset = 0;
         rebuildList();
+        dropChatIfCursorMoved();
         fullPaint();
         return;
       }
       if (str === "h") {
+        if (focusPane === "detail") return;
         healthIdx = (healthIdx + 1) % HEALTH_FILTERS.length;
         cursor = 0;
         offset = 0;
         rebuildList();
+        dropChatIfCursorMoved();
         fullPaint();
         return;
       }
       if (str === "H") {
+        if (focusPane === "detail") return;
         goScreen("H");
         return;
       }
       if (str === "M") {
+        if (focusPane === "detail") return;
         goScreen("M");
         return;
       }
       if (str === "L") {
+        if (focusPane === "detail") return;
         goScreen("L");
         return;
       }
       if (str === "z") {
+        if (focusPane === "detail") return;
         centerCursor();
         return;
       }
       if (str === "d") {
+        if (focusPane === "detail") return;
         armPending("d");
         return;
       }
       if (str === "g") {
+        if (focusPane === "detail") return;
         armPending("g");
         return;
       }
       if (str === "y" || str === "r") {
+        if (focusPane === "detail") return;
         if (str === "y") armPending("y");
         else doYank();
         return;
       }
       if (str === "u") {
+        if (focusPane === "detail") return;
         doUndo();
         return;
       }
       if (str === "G") {
+        if (focusPane === "detail") return;
         const prevC = cursor;
         const prevO = offset;
         cursor = Math.max(0, list.length - 1);
         clampScroll();
         paintSelectionChange(prevC, prevO);
+        return;
+      }
+
+      // navigation depends on focus pane
+      if (focusPane === "tags") {
+        const labels = tagRailLabels();
+        if (key.name === "up") {
+          tagCursor = Math.max(0, tagCursor - 1);
+          const lab = labels[tagCursor];
+          tagFilter = !lab || lab === "all" ? null : lab;
+          cursor = 0;
+          offset = 0;
+          rebuildList();
+          dropChatIfCursorMoved();
+          fullPaint();
+          return;
+        }
+        if (key.name === "down") {
+          tagCursor = Math.min(labels.length - 1, tagCursor + 1);
+          const lab = labels[tagCursor];
+          tagFilter = !lab || lab === "all" ? null : lab;
+          cursor = 0;
+          offset = 0;
+          rebuildList();
+          dropChatIfCursorMoved();
+          fullPaint();
+          return;
+        }
+        if (key.name === "return") {
+          // confirm filter (already live) → back to sessions
+          focusPane = "sessions";
+          fullPaint();
+          return;
+        }
+        return;
+      }
+
+      // Chat detail: scroll transcript; Enter reloads current session
+      if (focusPane === "detail") {
+        if (key.name === "return") {
+          openChatForCursor();
+          return;
+        }
+        if (key.name === "up") {
+          scrollChat(-1);
+          return;
+        }
+        if (key.name === "down") {
+          scrollChat(1);
+          return;
+        }
+        if (key.name === "pageup") {
+          scrollChat(-layout.page);
+          return;
+        }
+        if (key.name === "pagedown") {
+          scrollChat(layout.page);
+          return;
+        }
+        return;
+      }
+
+      // sessions focus
+      if (key.name === "return") {
+        clearPending();
+        openChatForCursor();
         return;
       }
 

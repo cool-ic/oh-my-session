@@ -5,6 +5,13 @@ dist/
 .env
 .env.*
 *.tmp
+tmp/
 
 # Local agent living doc (not for GitHub)
 总纲领.md
+
+# Personal session title / star overrides (local CSV; keep private)
+data/session-titles.csv
+data/session-stars.csv
+data/session-tags.csv
+data/.session-*.tmp

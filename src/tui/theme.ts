@@ -1,61 +1,74 @@
 /**
- * Warm dark palette — soft amber / olive / terracotta.
+ * Qoder-aligned dark palette.
+ *
+ * Brand green (#27BD51 / #2ADB5C) is for accents only.
+ * Body / IDs / paths use near-white or light gray — pale mint on dark
+ * is illegible at a distance (e.g. long UUIDs).
  */
 export const theme = {
-  accent: "#E8C48A",
-  title: "#F2E6D4",
-  text: "#E6D8C4",
-  dim: "#8A7A68",
-  line: "#4A3C30",
-  border: "#A88860",
+  /**
+   * Full-screen canvas (we paint this ourselves).
+   * Do not rely on the terminal default — many users run light terminals.
+   */
+  canvas: "#0B120E",
 
-  ok: "#C4D0A4",
-  empty: "#9A8C7C",
-  missing: "#E0A888",
+  /** Brand green — labels, keys, chips only */
+  accent: "#2ADB5C",
+  /** Near-white titles (on canvas) */
+  title: "#F5F7F6",
+  /** Body / IDs / commands */
+  text: "#E8EEE9",
+  /** Secondary (age, path) */
+  dim: "#A8B5AC",
+  line: "#2A6A3C",
+  border: "#27BD51",
 
-  /** Cursor row — high contrast warm highlight */
-  cursor: "#1A1410",
-  cursorBar: "#FFD78A",
-  selectBg: "#C9A06A",
-  selectFg: "#1A1410",
+  ok: "#3DDC6A",
+  empty: "#B0B8B2",
+  missing: "#E8A888",
 
-  /** Multi-select (Space) — dimmer warm fill, not as strong as cursor */
-  multiBg: "#4A3828",
-  multiFg: "#F0E0C8",
-  multiMark: "#FFD78A",
+  cursor: "#08120B",
+  cursorBar: "#2ADB5C",
+  selectBg: "#27BD51",
+  selectFg: "#08120B",
 
-  /** Inline TITLE edit (i) — brighter than cursor so cell feels "typing" */
-  editBg: "#F0DCB0",
-  editFg: "#1A1008",
+  multiBg: "#14321C",
+  multiFg: "#F0F2F0",
+  multiMark: "#2ADB5C",
 
-  warn: "#E8C48A",
-  action: "#F0D090",
-  panelBg: "#241E18",
+  star: "#C8F040",
 
-  /** Brand bar — hierarchy: name mark > section tags > keys > hints */
-  brandNameBg: "#4A3C2C",
-  brandNameFg: "#F5EDE0",
-  brandTagBg: "#2E2820",
-  brandTagFg: "#A89880",
-  brandSep: "#4A4034",
-  brandKey: "#E8C48A",
-  brandHint: "#6E5E4E",
+  editBg: "#9AE8A8",
+  editFg: "#08120B",
+
+  warn: "#FAAD14",
+  /** Commands / hotkeys — solid brand green (not pale) */
+  action: "#2ADB5C",
+  panelBg: "#0C0E0D",
+
+  brandNameBg: "#134220",
+  brandNameFg: "#F5F7F6",
+  brandTagBg: "#152A1C",
+  brandTagFg: "#D0D4D0",
+  brandSep: "#2A6A3C",
+  brandKey: "#2ADB5C",
+  brandHint: "#C4C9C5",
 
   source: {
-    all: "#F2E6D4",
-    grok: "#E8C48A",
-    qoder: "#D0B890",
-    claude: "#DCC8A0",
-    codex: "#BCA888",
-    cursor: "#D0BC9C",
+    all: "#F5F7F6",
+    grok: "#5CCC7B",
+    qoder: "#2ADB5C",
+    claude: "#8BD09E",
+    codex: "#A0B8A8",
+    cursor: "#B0C4B4",
   } as Record<string, string>,
 
   pill: {
-    okBg: "#2E3A28",
-    okFg: "#C8D8A8",
-    emptyBg: "#322C28",
-    emptyFg: "#A89888",
+    okBg: "#134220",
+    okFg: "#E8F8EC",
+    emptyBg: "#2A322E",
+    emptyFg: "#E0E4E0",
     missingBg: "#3E2A22",
-    missingFg: "#F0B898",
+    missingFg: "#FFD0B0",
   },
 } as const;

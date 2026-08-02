@@ -1,11 +1,11 @@
 {
-  "name": "agent-session-history",
+  "name": "oh-my-sessions",
   "version": "0.1.0",
-  "description": "List local agent sessions (Grok Build, Qoder, Claude Code, …) with age, message count, and path health",
+  "description": "oh-my-sessions — list local agent sessions (Grok, Qoder, Claude, …) with age, health, tags, and chat view",
   "type": "module",
   "bin": {
-    "agent-session-history": "./dist/index.js",
-    "ash": "./dist/index.js"
+    "oh-my-sessions": "./dist/index.js",
+    "oms": "./dist/index.js"
   },
   "scripts": {
     "start": "tsx src/index.ts",
@@ -17,6 +17,7 @@
     "node": ">=18"
   },
   "keywords": [
+    "oh-my-sessions",
     "agent",
     "session",
     "tui",
