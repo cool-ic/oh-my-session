@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
-"""Render a tmux/ANSI capture (truecolor FG+BG) to a PNG screenshot.
+"""
+Render tmux ANSI (truecolor FG+BG) to PNG on a **strict terminal cell grid**.
 
-Uses a **monospace** Latin font for 1-cell chars and a CJK font for
-full-width chars so the TUI grid stays aligned (no "G r o k" spacing).
+Column math mirrors `src/lib/width.ts` (display columns).
+Glyphs are left-aligned on cell origins with a shared baseline.
+Prefer **Sarasa Mono SC** (true dual-width CJK mono) when installed under
+`scripts/fonts/`; otherwise JetBrains Mono + WenQuanYi Micro Hei Mono.
 """
 from __future__ import annotations
 
@@ -12,107 +15,78 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-# CSI SGR (colors) — must NOT be stripped by OTHER_CSI
 SGR_RE = re.compile(r"\x1b\[([0-9;]*)m")
-# Strip non-SGR CSI only (cursor / erase / modes). Do not match final `m`.
 OTHER_CSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-ln-z]")
 OSC = re.compile(r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)")
 
-# Match TUI canvas (green dark) — see src/tui/theme.ts
 DEFAULT_BG = (11, 18, 14)
 DEFAULT_FG = (232, 238, 233)
-# Cell size tuned so DejaVu/JetBrains Mono 14 ≈ 1 cell wide
-CELL_W = 9
-CELL_H = 18
-PAD = 14
-FONT_SIZE = 14
+PAD = 12
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
+_FONTS = _SCRIPT_DIR / "fonts"
 
-# Monospace first (Latin / digits / box-drawing fallbacks)
-MONO_CANDIDATES = [
-    str(_SCRIPT_DIR / "fonts" / "JetBrainsMono-Regular.ttf"),
-    str(_SCRIPT_DIR / "fonts" / "DejaVuSansMono.ttf"),
-    "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
-    "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
-    "/usr/share/fonts/truetype/ubuntu/UbuntuMono-R.ttf",
+# Prefer a real dual-width CJK monospace (not committed — too large).
+SARASA_CANDIDATES = [
+    _FONTS / "SarasaMonoSC-Regular.ttf",
+    Path.home() / ".local/share/fonts/SarasaMonoSC-Regular.ttf",
+    Path.home() / ".local/share/fonts/oh-my-sessions/SarasaMonoSC-Regular.ttf",
 ]
 
-# CJK (full-width) — proportional is fine; we only use it for wide cells
-CJK_CANDIDATES = [
-    str(_SCRIPT_DIR / "fonts" / "wqy-microhei.ttc"),
-    str(Path.home() / ".local/share/fonts/oh-my-sessions/wqy-microhei.ttc"),
-    "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
-    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-    "/usr/share/fonts/truetype/noto/NotoSansSC-Regular.otf",
+MONO_FALLBACK = [
+    _FONTS / "JetBrainsMono-Regular.ttf",
+    _FONTS / "DejaVuSansMono.ttf",
+    Path("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"),
+]
+
+CJK_TTC = [
+    _FONTS / "wqy-microhei.ttc",
+    Path.home() / ".local/share/fonts/oh-my-sessions/wqy-microhei.ttc",
+    Path("/usr/share/fonts/truetype/wqy/wqy-microhei.ttc"),
 ]
 
 
-def _first_font(paths: list[str], size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
-    for p in paths:
-        try:
-            if Path(p).is_file():
-                return ImageFont.truetype(p, size)
-        except Exception:
-            continue
-    return ImageFont.load_default()
+def is_fullwidth_codepoint(code: int) -> bool:
+    """Match src/lib/width.ts isFullWidthCodePoint."""
+    if code <= 0x1F or (0x7F <= code <= 0x9F):
+        return False
+    if 0x300 <= code <= 0x36F:
+        return False
+    if 0x1AB0 <= code <= 0x1AFF:
+        return False
+    if 0x20D0 <= code <= 0x20FF:
+        return False
+    if 0xFE00 <= code <= 0xFE0F:
+        return False
+    return (
+        code == 0x3000
+        or (0x1100 <= code <= 0x115F)
+        or (0x2329 <= code <= 0x232A)
+        or (0x2E80 <= code <= 0x303E)
+        or (0x3040 <= code <= 0xA4CF)
+        or (0xAC00 <= code <= 0xD7A3)
+        or (0xF900 <= code <= 0xFAFF)
+        or (0xFE10 <= code <= 0xFE19)
+        or (0xFE30 <= code <= 0xFE6F)
+        or (0xFF00 <= code <= 0xFF60)
+        or (0xFFE0 <= code <= 0xFFE6)
+        or (0x1F300 <= code <= 0x1F9FF)
+        or (0x20000 <= code <= 0x2FFFD)
+        or (0x30000 <= code <= 0x3FFFD)
+    )
 
 
-def load_fonts(size: int = FONT_SIZE):
-    mono = _first_font(MONO_CANDIDATES, size)
-    cjk = _first_font(CJK_CANDIDATES, size)
-    return mono, cjk
+def display_width(ch: str) -> int:
+    code = ord(ch)
+    return 2 if is_fullwidth_codepoint(code) else 1
 
 
-def display_width(s: str) -> int:
-    w = 0
-    for ch in s:
-        o = ord(ch)
-        if (
-            0x1100 <= o <= 0x115F
-            or 0x2E80 <= o <= 0xA4CF
-            or 0xAC00 <= o <= 0xD7A3
-            or 0xF900 <= o <= 0xFAFF
-            or 0xFE10 <= o <= 0xFE6F
-            or 0xFF00 <= o <= 0xFF60
-            or 0xFFE0 <= o <= 0xFFE6
-            or o >= 0x1F300
-            # box drawing / block elements often double in some fonts — keep 1
-        ):
-            w += 2
-        else:
-            w += 1
-    return w
+def line_cols(s: str) -> int:
+    return sum(display_width(c) for c in s)
 
 
-def is_wide(ch: str) -> bool:
-    return display_width(ch) == 2
-
-
-def prefers_cjk_font(ch: str) -> bool:
-    """Wide CJK, or symbols often missing from Latin mono fonts (★ etc.)."""
-    if is_wide(ch):
-        return True
-    o = ord(ch)
-    if ch in "★☆✦✧•●○◆◇■□▲△▶▷◀◁▌▐█░▒▓✓✗✔✖":
-        return True
-    # Misc symbols / dingbats / geometric shapes
-    if 0x2190 <= o <= 0x21FF:  # arrows
-        return True
-    if 0x2600 <= o <= 0x27BF:
-        return True
-    if 0x2B00 <= o <= 0x2BFF:
-        return True
-    return False
-
-
-def apply_sgr(
-    params: list[int],
-    fg: tuple[int, int, int] | None,
-    bg: tuple[int, int, int] | None,
-) -> tuple[tuple[int, int, int] | None, tuple[int, int, int] | None]:
-    i = 0
-    n = len(params)
+def apply_sgr(params: list[int], fg, bg):
+    i, n = 0, len(params)
     if n == 0:
         return None, None
     while i < n:
@@ -139,8 +113,7 @@ def apply_sgr(
                 fg = (v, v, v)
             elif 16 <= idx <= 231:
                 c = idx - 16
-                r, g, b = c // 36, (c % 36) // 6, c % 6
-                fg = (r * 51, g * 51, b * 51)
+                fg = ((c // 36) * 51, ((c % 36) // 6) * 51, (c % 6) * 51)
             i += 3
         elif p == 48 and i + 2 < n and params[i + 1] == 5:
             idx = params[i + 2]
@@ -149,8 +122,7 @@ def apply_sgr(
                 bg = (v, v, v)
             elif 16 <= idx <= 231:
                 c = idx - 16
-                r, g, b = c // 36, (c % 36) // 6, c % 6
-                bg = (r * 51, g * 51, b * 51)
+                bg = ((c // 36) * 51, ((c % 36) // 6) * 51, (c % 6) * 51)
             i += 3
         else:
             i += 1
@@ -158,12 +130,10 @@ def apply_sgr(
 
 
 def parse_line(line: str):
-    """Yield (text, fg_rgb|None, bg_rgb|None) runs with truecolor state."""
     line = OSC.sub("", line)
     line = OTHER_CSI.sub("", line)
     pos = 0
-    fg: tuple[int, int, int] | None = None
-    bg: tuple[int, int, int] | None = None
+    fg = bg = None
     for m in SGR_RE.finditer(line):
         if m.start() > pos:
             yield line[pos : m.start()], fg, bg
@@ -174,88 +144,136 @@ def parse_line(line: str):
         yield line[pos:], fg, bg
 
 
-def glyph_bbox(draw: ImageDraw.ImageDraw, ch: str, font) -> tuple[int, int, int, int]:
-    try:
-        return draw.textbbox((0, 0), ch, font=font)
-    except Exception:
-        return (0, 0, CELL_W, CELL_H)
+def _truetype(path: Path, size: int, index: int = 0):
+    return ImageFont.truetype(str(path), size, index=index)
 
 
-def draw_char_in_cell(
-    draw: ImageDraw.ImageDraw,
-    x: int,
-    y: int,
-    ch: str,
-    cells: int,
-    fg: tuple[int, int, int],
-    bg: tuple[int, int, int],
-    font_mono,
-    font_cjk,
-) -> None:
-    """Paint one character centered in `cells` grid cells."""
-    cell_px = cells * CELL_W
-    if bg != DEFAULT_BG:
-        draw.rectangle([x, y, x + cell_px - 1, y + CELL_H - 1], fill=bg)
+def load_fonts():
+    """
+    Returns (font_for_all_or_latin, font_cjk_or_same, cell_w, cell_h, baseline_off, mode)
+    mode: 'sarasa' | 'dual'
+    """
+    # --- Prefer single dual-width font (best alignment) ---
+    for p in SARASA_CANDIDATES:
+        if not p.is_file():
+            continue
+        # size 16 → M=8, 中=16 exactly on Sarasa Mono SC
+        for size in (16, 18, 14, 20, 12):
+            f = _truetype(p, size)
+            m = f.getlength("M")
+            z = f.getlength("中")
+            if abs(z - 2 * m) < 0.6:
+                ascent, descent = f.getmetrics()
+                cell_w = max(1, int(round(m)))
+                cell_h = ascent + descent + 2
+                return f, f, cell_w, cell_h, ascent + 1, "sarasa"
+        # any size close enough
+        f = _truetype(p, 16)
+        m = f.getlength("M")
+        ascent, descent = f.getmetrics()
+        return f, f, max(1, int(round(m))), ascent + descent + 2, ascent + 1, "sarasa"
 
-    if ch in (" ", "\t") or ch == "\u00a0":
-        return
+    # --- Dual: Latin mono + WQY Mono sized for 2× cell ---
+    mono = None
+    for p in MONO_FALLBACK:
+        if p.is_file():
+            mono = _truetype(p, 15)
+            break
+    if mono is None:
+        raise SystemExit("no monospace font found")
 
-    font = font_cjk if prefers_cjk_font(ch) else font_mono
-    l, t, r, b = glyph_bbox(draw, ch, font)
-    gw, gh = max(1, r - l), max(1, b - t)
-    # If mono produced an empty/tiny box, fall back to CJK
-    if font is font_mono and gw < 2:
-        font = font_cjk
-        l, t, r, b = glyph_bbox(draw, ch, font)
-        gw, gh = max(1, r - l), max(1, b - t)
-    # Center in cell
-    ox = x + max(0, (cell_px - gw) // 2) - l
-    oy = y + max(0, (CELL_H - gh) // 2) - t
-    draw.text((ox, oy), ch, fill=fg, font=font)
+    cell_w = max(1, int(round(mono.getlength("M"))))
+    target = 2 * cell_w
+    cjk = mono
+    ttc = next((p for p in CJK_TTC if p.is_file()), None)
+    if ttc:
+        best = None
+        for sz in range(8, 48):
+            try:
+                f = _truetype(ttc, sz, index=1)  # Micro Hei Mono
+            except Exception:
+                f = _truetype(ttc, sz, index=0)
+            err = abs(f.getlength("中") - target)
+            if best is None or err < best[0]:
+                best = (err, f)
+        cjk = best[1]  # type: ignore
+
+    ascent, descent = mono.getmetrics()
+    return mono, cjk, cell_w, ascent + descent + 2, ascent + 1, "dual"
 
 
 def main() -> None:
     if len(sys.argv) < 3:
         print(f"usage: {sys.argv[0]} <ansi.txt> <out.png>", file=sys.stderr)
         sys.exit(2)
-    src = Path(sys.argv[1])
-    dst = Path(sys.argv[2])
+    src, dst = Path(sys.argv[1]), Path(sys.argv[2])
     raw = src.read_bytes().decode("utf-8", errors="replace")
     lines = raw.splitlines()
     while lines and not lines[-1].strip():
         lines.pop()
 
-    max_cols = 1
+    font_latin, font_cjk, CELL_W, CELL_H, baseline_off, mode = load_fonts()
+
     parsed = []
+    max_cols = 1
     for line in lines:
         runs = list(parse_line(line.rstrip("\n")))
         plain = "".join(t for t, _, _ in runs)
-        max_cols = max(max_cols, display_width(plain))
+        max_cols = max(max_cols, line_cols(plain))
         parsed.append(runs)
 
-    w = PAD * 2 + max_cols * CELL_W
-    h = PAD * 2 + len(parsed) * CELL_H
-    img = Image.new("RGB", (w, h), DEFAULT_BG)
-    draw = ImageDraw.Draw(img)
-    font_mono, font_cjk = load_fonts(FONT_SIZE)
+    W = PAD * 2 + max_cols * CELL_W
+    H = PAD * 2 + len(parsed) * CELL_H
+    img = Image.new("RGB", (W, H), DEFAULT_BG)
 
     y = PAD
     for runs in parsed:
-        x = PAD
+        col = 0
         for text, fg, bg in runs:
             color = fg if fg is not None else DEFAULT_FG
             cell_bg = bg if bg is not None else DEFAULT_BG
             for ch in text:
-                cells = 2 if is_wide(ch) else 1
-                draw_char_in_cell(
-                    draw, x, y, ch, cells, color, cell_bg, font_mono, font_cjk
-                )
-                x += cells * CELL_W
+                cells = display_width(ch)
+                x = PAD + col * CELL_W
+                cell_px_w = cells * CELL_W
+
+                # Paint cell bg on main canvas
+                if cell_bg != DEFAULT_BG:
+                    draw = ImageDraw.Draw(img)
+                    draw.rectangle(
+                        [x, y, x + cell_px_w - 1, y + CELL_H - 1], fill=cell_bg
+                    )
+
+                if ch not in (" ", "\t", "\u00a0"):
+                    # Pick font: fullwidth → CJK face; else Latin mono
+                    code = ord(ch)
+                    use_cjk = is_fullwidth_codepoint(code) or mode == "sarasa"
+                    font = font_cjk if use_cjk else font_latin
+
+                    # Render into a cell-sized RGBA tile then paste — hard clip
+                    # so oversize glyphs (e.g. ★) cannot shift columns.
+                    tile = Image.new("RGBA", (cell_px_w, CELL_H), (0, 0, 0, 0))
+                    td = ImageDraw.Draw(tile)
+                    # Left edge + shared baseline; never horizontal-center
+                    td.text(
+                        (0, baseline_off),
+                        ch,
+                        fill=color + (255,),
+                        font=font,
+                        anchor="ls",
+                    )
+                    img.paste(tile, (x, y), tile)
+
+                col += cells
         y += CELL_H
 
-    draw.rectangle([0, 0, w, 3], fill=(42, 219, 92))
+    draw = ImageDraw.Draw(img)
+    draw.rectangle([0, 0, W, 3], fill=(42, 219, 92))
     img.save(dst, "PNG")
-    print(f"wrote {dst} ({w}x{h})")
+    print(
+        f"wrote {dst} ({W}x{H}) mode={mode} CELL={CELL_W}x{CELL_H} "
+        f"M={font_latin.getlength('M'):.1f} 中={font_cjk.getlength('中'):.1f}"
+    )
 
 
 if __name__ == "__main__":
