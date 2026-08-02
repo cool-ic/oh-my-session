@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Capture oh-my-sessions TUI into PNG via tmux + ansi_to_png.py
+# OMS_SHOT_FONT_SIZE=20  # wider; default 20 in ansi_to_png.py
 #
 # Usage:
 #   ./scripts/screenshot.sh                 # main list → docs/images/tui-main.png

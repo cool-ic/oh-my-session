@@ -27,8 +27,16 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 _FONTS = _SCRIPT_DIR / "fonts"
 
 # Prefer a real dual-width CJK monospace (not committed — too large).
+# SemiBold/Bold read fuller; size ~20 avoids the "too narrow" look of 16px.
+import os as _os
+
+SARASA_SIZE = int(_os.environ.get("OMS_SHOT_FONT_SIZE", "20"))
 SARASA_CANDIDATES = [
+    # Fuller strokes first
+    _FONTS / "SarasaMonoSC-SemiBold.ttf",
+    _FONTS / "SarasaMonoSC-Bold.ttf",
     _FONTS / "SarasaMonoSC-Regular.ttf",
+    Path.home() / ".local/share/fonts/SarasaMonoSC-SemiBold.ttf",
     Path.home() / ".local/share/fonts/SarasaMonoSC-Regular.ttf",
     Path.home() / ".local/share/fonts/oh-my-sessions/SarasaMonoSC-Regular.ttf",
 ]
@@ -154,24 +162,35 @@ def load_fonts():
     mode: 'sarasa' | 'dual'
     """
     # --- Prefer single dual-width font (best alignment) ---
+    # Prefer even sizes (12/14/16/18/20/22) where Sarasa M:中 is exactly 1:2.
+    size_order = [SARASA_SIZE] + [
+        s for s in (20, 18, 22, 16, 14, 12) if s != SARASA_SIZE
+    ]
     for p in SARASA_CANDIDATES:
         if not p.is_file():
             continue
-        # size 16 → M=8, 中=16 exactly on Sarasa Mono SC
-        for size in (16, 18, 14, 20, 12):
+        for size in size_order:
             f = _truetype(p, size)
             m = f.getlength("M")
             z = f.getlength("中")
             if abs(z - 2 * m) < 0.6:
                 ascent, descent = f.getmetrics()
                 cell_w = max(1, int(round(m)))
-                cell_h = ascent + descent + 2
-                return f, f, cell_w, cell_h, ascent + 1, "sarasa"
-        # any size close enough
-        f = _truetype(p, 16)
+                # Extra vertical air so it doesn't feel cramped
+                cell_h = ascent + descent + 4
+                return f, f, cell_w, cell_h, ascent + 2, f"sarasa@{p.name}:{size}"
+        # fallback any size on this face
+        f = _truetype(p, SARASA_SIZE)
         m = f.getlength("M")
         ascent, descent = f.getmetrics()
-        return f, f, max(1, int(round(m))), ascent + descent + 2, ascent + 1, "sarasa"
+        return (
+            f,
+            f,
+            max(1, int(round(m))),
+            ascent + descent + 4,
+            ascent + 2,
+            f"sarasa@{p.name}:{SARASA_SIZE}",
+        )
 
     # --- Dual: Latin mono + WQY Mono sized for 2× cell ---
     mono = None
