@@ -12,8 +12,8 @@
  * :q quits if no pending deletes; :q! discards marks and quits.
  * Auto-refresh every 8s when reload is provided.
  */
-import readline from "node:readline";
 import type { AgentSource, SessionHealth, SessionRecord } from "../types.js";
+import { attachKeys, type AppKey } from "../lib/keys.js";
 import { formatAge } from "../lib/time.js";
 import { resumeHint, resumeInfo, shortId } from "../lib/format.js";
 import { deleteSessions } from "../lib/delete-session.js";
@@ -2341,8 +2341,8 @@ export async function runRawTui(
   }
 
   rebuildList();
-  readline.emitKeypressEvents(stdin);
-  stdin.setRawMode(true);
+  // Custom key reader: bare Esc in ~25ms (Node readline waits ~500ms — feels laggy)
+  if (stdin.isTTY) stdin.setRawMode(true);
   stdin.resume();
   write(altEnter() + hideCursor());
   fullPaint();
@@ -2355,17 +2355,20 @@ export async function runRawTui(
     : null;
 
   await new Promise<void>((resolve) => {
+    let detachKeys: (() => void) | null = null;
+
     const cleanup = (): void => {
       if (refreshTimer) clearInterval(refreshTimer);
       clearPending();
       stdout.off("resize", onResize);
-      stdin.off("keypress", onKey);
+      detachKeys?.();
+      detachKeys = null;
       if (stdin.isTTY) stdin.setRawMode(false);
       write(showCursor() + altLeave());
       stdin.pause();
     };
 
-    const onKey = (_str: string | undefined, key: readline.Key): void => {
+    const onKey = (_str: string | undefined, key: AppKey): void => {
       const str = _str ?? "";
 
       // ----- :help overlay (first) -----
@@ -2889,6 +2892,6 @@ export async function runRawTui(
       }
     };
 
-    stdin.on("keypress", onKey);
+    detachKeys = attachKeys(stdin, onKey);
   });
 }
