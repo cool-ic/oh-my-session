@@ -669,8 +669,8 @@ export async function runRawTui(
       : isMulti
         ? " *"
         : "  ";
-    // star: padded " ★ " so it breathes away from STATUS
-    const starPlain = padEndWidth(starred ? "★" : "", LC.star);
+    // star: filled ★ / outline ☆ (reference TUI style)
+    const starPlain = padEndWidth(starred ? "★" : "☆", LC.star);
     const gapStar = " ".repeat(LC.gs);
     const statusPlain = padEndWidth(
       h === "ok" ? "OK" : h === "empty" ? "Empty" : "Missing",
@@ -719,7 +719,7 @@ export async function runRawTui(
 
     const starColored = starred
       ? fg(theme.star, padEndWidth("★", LC.star))
-      : " ".repeat(LC.star);
+      : fg(theme.starEmpty, padEndWidth("☆", LC.star));
 
     return padAnsi(
       markPlain +
@@ -743,7 +743,7 @@ export async function runRawTui(
   function buildColHeader(): string {
     return padAnsi(
       "  " +
-        fg(theme.dim, padEndWidth("★", LC.star)) +
+        fg(theme.starEmpty, padEndWidth("☆", LC.star)) +
         " ".repeat(LC.gs) +
         fg(theme.dim, padEndWidth("STATUS", LC.status)) +
         " ".repeat(LC.g1) +

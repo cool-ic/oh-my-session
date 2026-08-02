@@ -19,8 +19,9 @@ SGR_RE = re.compile(r"\x1b\[([0-9;]*)m")
 OTHER_CSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-ln-z]")
 OSC = re.compile(r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)")
 
-DEFAULT_BG = (11, 18, 14)
-DEFAULT_FG = (232, 238, 233)
+# Match theme.canvas / theme.text (cool dark + soft body)
+DEFAULT_BG = (11, 13, 18)
+DEFAULT_FG = (210, 214, 222)
 PAD = 12
 
 _SCRIPT_DIR = Path(__file__).resolve().parent

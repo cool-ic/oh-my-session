@@ -1,106 +1,109 @@
 /**
- * Qoder-aligned dark palette.
- *
- * Brand green (#27BD51 / #2ADB5C) is for accents only.
- * Body / IDs / paths use near-white or light gray — pale mint on dark
- * is illegible at a distance (e.g. long UUIDs).
+ * Palette inspired by professional agent session TUIs (reference screenshot):
+ *   - deep blue-black canvas (not neon-green field)
+ *   - soft off-white body text
+ *   - **gold/amber selection row** (readable, calm)
+ *   - gold ★ / dim ☆ stars
+ *   - muted secondary for paths / age
+ *   - green kept only as a quiet accent (status ok, brand tick)
  */
 export const theme = {
   /**
    * Full-screen canvas (we paint this ourselves).
-   * Do not rely on the terminal default — many users run light terminals.
+   * Cool near-black — matches the reference “terminal table” look.
    */
-  canvas: "#0B120E",
+  canvas: "#0B0D12",
 
-  /** Brand green — labels, keys, chips only */
-  accent: "#2ADB5C",
-  /** Near-white titles (on canvas) */
-  title: "#F5F7F6",
+  /** Quiet accent (ok ticks, small chrome) — not the selection color */
+  accent: "#6BCB8A",
+  /** Near-white titles */
+  title: "#E8EAEF",
   /** Body / IDs / commands */
-  text: "#E8EEE9",
-  /** Secondary (age, path) */
-  dim: "#A8B5AC",
-  line: "#2A6A3C",
-  border: "#27BD51",
+  text: "#D2D6DE",
+  /** Secondary (age, path, hints) */
+  dim: "#7A8494",
+  line: "#2A303C",
+  border: "#3A4250",
 
-  ok: "#3DDC6A",
-  empty: "#B0B8B2",
-  missing: "#E8A888",
+  ok: "#6BCB8A",
+  empty: "#8A9099",
+  missing: "#E0A080",
 
-  cursor: "#08120B",
-  cursorBar: "#2ADB5C",
-  selectBg: "#27BD51",
-  selectFg: "#08120B",
+  /** Selection — gold bar like the reference UI */
+  cursor: "#1A1608",
+  cursorBar: "#D4B44A",
+  selectBg: "#C9A84A",
+  selectFg: "#1A1608",
 
-  multiBg: "#14321C",
-  multiFg: "#F0F2F0",
-  multiMark: "#2ADB5C",
+  /** Multi-select — cooler muted amber */
+  multiBg: "#2A2618",
+  multiFg: "#E8E0C8",
+  multiMark: "#D4B44A",
 
-  star: "#C8F040",
+  /** Stars: filled gold / empty outline */
+  star: "#E0C060",
+  starEmpty: "#4A5060",
 
-  editBg: "#9AE8A8",
-  editFg: "#08120B",
+  /** Inline rename */
+  editBg: "#D4B44A",
+  editFg: "#1A1608",
 
-  warn: "#FAAD14",
-  /** Commands / hotkeys — solid brand green (not pale) */
-  action: "#2ADB5C",
-  panelBg: "#0C0E0D",
+  warn: "#E0A84A",
+  action: "#D4B44A",
+  panelBg: "#0E1016",
 
-  brandNameBg: "#134220",
-  brandNameFg: "#F5F7F6",
-  brandTagBg: "#152A1C",
-  brandTagFg: "#D0D4D0",
-  brandSep: "#2A6A3C",
-  brandKey: "#2ADB5C",
-  brandHint: "#C4C9C5",
+  /** Brand bar — subdued, not neon */
+  brandNameBg: "#1A2030",
+  brandNameFg: "#E8EAEF",
+  brandTagBg: "#141820",
+  brandTagFg: "#9AA3B0",
+  brandSep: "#3A4250",
+  brandKey: "#D4B44A",
+  brandHint: "#8A9099",
 
   source: {
-    all: "#F5F7F6",
-    grok: "#5CCC7B",
-    qoder: "#2ADB5C",
-    claude: "#8BD09E",
-    codex: "#A0B8A8",
-    cursor: "#B0C4B4",
+    all: "#E8EAEF",
+    grok: "#8FCB9B",
+    qoder: "#7EB8E0",
+    claude: "#D4A574",
+    codex: "#A0A8B4",
+    cursor: "#B0B8C4",
   } as Record<string, string>,
 
   pill: {
-    okBg: "#134220",
-    okFg: "#E8F8EC",
-    emptyBg: "#2A322E",
-    emptyFg: "#E0E4E0",
-    missingBg: "#3E2A22",
-    missingFg: "#FFD0B0",
+    okBg: "#15241C",
+    okFg: "#B8E0C4",
+    emptyBg: "#1C2028",
+    emptyFg: "#C0C4CC",
+    missingBg: "#2A1C18",
+    missingFg: "#F0C8B0",
   },
 
   /**
-   * Chat pane — modern “message list” (no emoji chrome).
-   * Soft cards + thin accent bar; Agent brand green, You cool slate.
+   * Chat message list — calm cards on cool canvas.
+   * Agent: soft green; You: soft blue (not neon).
    */
   chat: {
-    /** Sticky strip at top of pane */
-    headerFg: "#8FA896",
-    headerBg: "#0C1410",
-    headerAccent: "#2ADB5C",
-    /** Agent card */
-    agentName: "#3DDC6A",
-    agentBar: "#2ADB5C",
-    agentBg: "#101A14",
-    agentText: "#E6EEE8",
-    /** You card */
-    userName: "#7EC8E3",
-    userBar: "#4AA8C9",
-    userBg: "#0E161C",
-    userText: "#E4EEF2",
-    /** Tool / think (rare) */
+    headerFg: "#8A9099",
+    headerBg: "#10141C",
+    headerAccent: "#D4B44A",
+    agentName: "#8FCB9B",
+    agentBar: "#4A9A68",
+    agentBg: "#10161A",
+    agentText: "#D8DEE4",
+    userName: "#7EB8E0",
+    userBar: "#4A88B0",
+    userBg: "#0E141C",
+    userText: "#D8E4EC",
     toolName: "#D4B56A",
-    toolBar: "#C4A04A",
+    toolBar: "#A88840",
     toolBg: "#16140E",
-    toolText: "#EDE6D4",
-    thinkName: "#8A968C",
-    thinkBar: "#4A5550",
-    thinkBg: "#121614",
-    thinkText: "#A8B5AC",
-    timeFg: "#5A6E60",
-    sep: "#152018",
+    toolText: "#E8E0C8",
+    thinkName: "#8A9099",
+    thinkBar: "#4A5060",
+    thinkBg: "#12141A",
+    thinkText: "#A0A8B4",
+    timeFg: "#5A6470",
+    sep: "#1C222C",
   },
 } as const;
