@@ -112,8 +112,6 @@ oh-my-sessions --help
 | **Claude Code** | `~/.claude/projects/<slug>/*.jsonl` | `claude --resume <id>` (any cwd) |
 | Codex / Cursor | Reserved in types | — |
 
-Path health and field mapping: [`d/session-stores.md`](./d/session-stores.md).
-
 ---
 
 ## UI overview

@@ -112,8 +112,6 @@ oh-my-sessions --help
 | **Claude Code** | `~/.claude/projects/<slug>/*.jsonl` | `claude --resume <id>`（任意目录） |
 | Codex / Cursor | 类型中预留 | — |
 
-路径健康与字段映射见 [`d/session-stores.md`](../d/session-stores.md)。
-
 ---
 
 ## 界面说明
