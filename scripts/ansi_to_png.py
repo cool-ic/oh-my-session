@@ -14,11 +14,37 @@ SGR_RE = re.compile(r"\x1b\[([0-9;]*)m")
 OTHER_CSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 OSC = re.compile(r"\x1b\][^\x07]*\x07")
 
-BG = (28, 24, 20)  # warm near-black parchment dark
-FG = (232, 220, 200)
+# Match TUI canvas (green dark) — see src/tui/theme.ts
+BG = (11, 18, 14)
+FG = (232, 238, 233)
 CELL_W = 9
 CELL_H = 18
 PAD = 16
+
+# Prefer CJK-capable fonts so Chinese titles don't render as tofu (□).
+FONT_CANDIDATES = [
+    # Bundled next to this script (reproducible screenshots)
+    str(Path(__file__).resolve().parent / "fonts" / "wqy-microhei.ttc"),
+    # Project-local / user install
+    str(Path.home() / ".local/share/fonts/oh-my-sessions/wqy-microhei.ttc"),
+    str(Path.home() / ".local/share/fonts/wqy-microhei.ttc"),
+    "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-SC-Regular.otf",
+    "/usr/share/fonts/truetype/noto/NotoSansSC-Regular.otf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+    "/usr/share/fonts/truetype/noto/NotoSansMono-Regular.ttf",
+]
+
+
+def load_font(size: int = 14):
+    for p in FONT_CANDIDATES:
+        try:
+            if Path(p).is_file():
+                return ImageFont.truetype(p, size)
+        except Exception:
+            continue
+    return ImageFont.load_default()
 
 
 def parse_line(line: str):
@@ -83,17 +109,7 @@ def main() -> None:
     h = PAD * 2 + len(parsed) * CELL_H
     img = Image.new("RGB", (w, h), BG)
     draw = ImageDraw.Draw(img)
-    try:
-        font = ImageFont.truetype(
-            "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", 14
-        )
-    except Exception:
-        try:
-            font = ImageFont.truetype(
-                "/usr/share/fonts/truetype/noto/NotoSansMono-Regular.ttf", 13
-            )
-        except Exception:
-            font = ImageFont.load_default()
+    font = load_font(14)
 
     y = PAD
     for runs in parsed:
@@ -107,8 +123,8 @@ def main() -> None:
                 x += cw * CELL_W
         y += CELL_H
 
-    # soft top accent line
-    draw.rectangle([0, 0, w, 3], fill=(180, 140, 90))
+    # soft top accent line (brand green)
+    draw.rectangle([0, 0, w, 3], fill=(42, 219, 92))
     img.save(dst, "PNG")
     print(f"wrote {dst} ({w}x{h})")
 

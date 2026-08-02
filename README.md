@@ -10,13 +10,27 @@
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20WSL-lightgrey.svg)](#)
 [![GitHub stars](https://img.shields.io/github/stars/cool-ic/oh-my-sessions?style=social)](https://github.com/cool-ic/oh-my-sessions)
 
-English · [中文说明](#-中文速览)
+**English** · [中文速览](./docs/README_zh-CN.md)
 
 <br/>
 
 List, inspect, tag, and clean up sessions from **Grok Build**, **Qoder**, and **Claude Code** — with resume commands, health badges, and a read-only chat transcript.
 
 </div>
+
+---
+
+## Demo
+
+Main UI (tags · sessions · detail):
+
+![Main TUI](./docs/images/tui-main.png)
+
+Chat view after **Enter** (near→far; **Esc** back to sessions):
+
+![Chat TUI](./docs/images/tui-chat.png)
+
+> Captured live with `./scripts/screenshot.sh` (`npm start` inside tmux → ANSI → PNG).
 
 ---
 
@@ -106,17 +120,6 @@ Path health and field mapping: [`d/session-stores.md`](./d/session-stores.md).
 
 Wide terminals (≥ ~120 cols): **tags | session table | detail/chat**.
 
-```
-┌─ oh-my-sessions ──────────────────────────────────────────── 3/42 ↻8s ─┐
-│ tags   │ ★  STATUS   SOURCE  AGE  MSGS  TITLE        RESUME DIR       │ Detail │
-│ all    │    OK       Grok    2m    48   fix pipeline /home/f/proj     │ ID …   │
-│ tools▸ │ ★  OK       Qoder   1h   120   refactor ui  /work/app        │ Resume │
-│ work   │    Missing  Claude  3d    12   old bug      ✗ /gone/path     │ cmd …  │
-│        │    Empty    Grok    5d     0   (scratch)    /tmp/x           │        │
-└────────┴──────────────────────────────────────────────────────────────┴────────┘
-  Enter chat · Tab focus · t tag · * star · i rename · :wq
-```
-
 | Pane | Role |
 |------|------|
 | **Left · tags** | Filter by tag (`all` = everything). `t` assigns a tag |
@@ -201,6 +204,16 @@ Architecture map: [`d/codemap.md`](./d/codemap.md).
 
 ---
 
+## Screenshots (reproduce)
+
+```bash
+# needs: tmux, Python3 + Pillow, CJK font under scripts/fonts/
+./scripts/screenshot.sh main    # → docs/images/tui-main.png
+./scripts/screenshot.sh chat    # → docs/images/tui-chat.png
+```
+
+---
+
 ## Project layout
 
 ```
@@ -211,6 +224,12 @@ oh-my-sessions/
 │   ├── lib/               # health, resume, CSV stores, transcript, width
 │   └── tui/               # rawApp + theme
 ├── data/                  # local CSV (gitignored)
+├── docs/
+│   ├── README_zh-CN.md    # Chinese README
+│   └── images/            # TUI screenshots
+├── scripts/
+│   ├── screenshot.sh      # tmux → PNG
+│   └── ansi_to_png.py
 ├── d/                     # design / store / UI specs
 ├── package.json
 └── README.md
@@ -243,28 +262,12 @@ Issues and PRs welcome: [github.com/cool-ic/oh-my-sessions](https://github.com/c
 
 | Doc | Role |
 |-----|------|
+| [docs/README_zh-CN.md](./docs/README_zh-CN.md) | Full Chinese README |
 | [d/ui-tui.md](./d/ui-tui.md) | TUI layout & keys |
 | [d/session-stores.md](./d/session-stores.md) | On-disk formats & resume semantics |
 | [d/constraints.md](./d/constraints.md) | Hard boundaries |
 | [d/codemap.md](./d/codemap.md) | Module map |
 | [workflow.md](./workflow.md) | Process notes |
-
----
-
-## 中文速览
-
-**oh-my-sessions** 是一个本地 TUI：统一查看 **Grok / Qoder / Claude** 等 Agent 会话。
-
-- **一眼健康**：OK / Empty / Missing  
-- **一键续跑提示**：`y` 显示 resume 命令（Qoder 会带 `cd`）  
-- **回看对话**：`Enter` 右侧只读聊天（近→远），`Esc` 回中间列表  
-- **本地整理**：重命名 / 星标 / 标签 → `data/*.csv`，**不改**各 Agent 原生存储  
-- **安全删除**：`dd` 标记 → `:wq` 才真正删盘  
-
-```bash
-git clone https://github.com/cool-ic/oh-my-sessions.git
-cd oh-my-sessions && npm install && npm start
-```
 
 ---
 
