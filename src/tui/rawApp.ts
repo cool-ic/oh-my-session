@@ -580,8 +580,23 @@ export async function runRawTui(
     );
   }
 
+  /** When set, coalesce writes into one stdout.write (faster Esc / soft paint). */
+  let writeBuf: string | null = null;
+
   function write(s: string): void {
-    stdout.write(s);
+    if (writeBuf !== null) writeBuf += s;
+    else stdout.write(s);
+  }
+
+  function beginBatch(): void {
+    writeBuf = "";
+  }
+
+  function endBatch(): void {
+    if (writeBuf !== null) {
+      if (writeBuf.length > 0) stdout.write(writeBuf);
+      writeBuf = null;
+    }
   }
 
   function paintCell(
@@ -1238,7 +1253,8 @@ export async function runRawTui(
     const s = list[cursor];
     if (!s) return;
     if (focusPane === "tags") return;
-    statusLine = "loading chat…";
+    // Paint chrome first so open feels snappy; load after is ok for large logs
+    statusLine = "loading…";
     paintFooter();
     chatTurns = readTranscript(s);
     chatSessionKey = sessionKey(s);
@@ -1253,26 +1269,26 @@ export async function runRawTui(
       chatTurns.length === 0
         ? "no messages · Esc → sessions"
         : `messages ${chatTurns.length} · ↑↓ · Enter full · Esc sessions`;
-    fullPaint();
+    // Differential only — avoid full-screen erase (slow on WSL / large terms)
+    paintSoft();
   }
 
   function expandChatAtCursor(): void {
     if (detailView !== "chat" || chatTurns.length === 0) return;
     if (chatExpandIdx !== null) {
-      // already full → collapse to list
       chatExpandIdx = null;
       chatOffset = 0;
       clampChatListScroll();
       rebuildChatLines(Math.max(8, layout.detailW - 2));
       statusLine = `messages ${chatTurns.length} · ↑↓ · Enter full · Esc sessions`;
-      fullPaint();
+      paintChatPaneOnly();
       return;
     }
     chatExpandIdx = chatCursor;
     chatOffset = 0;
     rebuildChatLines(Math.max(8, layout.detailW - 2));
     statusLine = "full message · ↑↓ scroll · Esc → list";
-    fullPaint();
+    paintChatPaneOnly();
   }
 
   function collapseChatExpand(): boolean {
@@ -1282,7 +1298,7 @@ export async function runRawTui(
     clampChatListScroll();
     rebuildChatLines(Math.max(8, layout.detailW - 2));
     statusLine = `messages ${chatTurns.length} · ↑↓ · Enter full · Esc sessions`;
-    fullPaint();
+    paintChatPaneOnly();
     return true;
   }
 
@@ -1298,12 +1314,12 @@ export async function runRawTui(
     if (focusPane === "detail") focusPane = "sessions";
   }
 
-  /** Close chat view and put focus back on the middle session list. */
+  /** Close chat → sessions. Differential paint for instant Esc. */
   function closeChat(): void {
     resetChatState();
     focusPane = "sessions";
     statusLine = "";
-    fullPaint();
+    paintSoft();
   }
 
   /** If list cursor left the open chat session, drop chat → meta. */
@@ -1332,15 +1348,21 @@ export async function runRawTui(
 
   function moveChatList(delta: number): void {
     if (chatTurns.length === 0) return;
+    const prev = chatCursor;
     chatCursor = Math.max(
       0,
       Math.min(chatTurns.length - 1, chatCursor + delta),
     );
+    if (chatCursor === prev && delta !== 0) {
+      // still scroll viewport if already at edge with page jump content
+    }
+    const prevOff = chatOffset;
     clampChatListScroll();
-    rebuildChatLines(Math.max(8, layout.detailW - 2));
-    paintDetail();
-    paintFooter();
-    write(move(layout.rowFooter, 1));
+    // Rebuild list rows only when selection or scroll window changed
+    if (chatCursor !== prev || chatOffset !== prevOff) {
+      rebuildChatLines(Math.max(8, layout.detailW - 2));
+    }
+    paintChatPaneOnly();
   }
 
   function scrollChat(delta: number): void {
@@ -1592,6 +1614,67 @@ export async function runRawTui(
     );
   }
 
+  /** Detail column title (Chat / Detail) — split layout only. */
+  function paintDetailHeader(): void {
+    if (!layout.split) return;
+    const label = detailHeaderLabel();
+    const headColor =
+      focusPane === "detail" ? theme.title : theme.accent;
+    paintCell(
+      layout.rowColHead,
+      layout.detailCol,
+      layout.detailW,
+      fg(headColor, padEndWidth(label, layout.detailW - 1)) +
+        fg(theme.border, "│"),
+    );
+  }
+
+  /**
+   * Fast UI refresh without full-screen erase.
+   * Use for Esc leave-chat / open-chat / focus changes — avoids ~1s lag on WSL.
+   */
+  function paintSoft(): void {
+    beginBatch();
+    try {
+      paintBrand();
+      paintTagRail();
+      if (layout.split) {
+        paintCell(
+          layout.rowColHead,
+          layout.listCol,
+          layout.listW,
+          buildColHeader(),
+        );
+        paintCell(
+          layout.rowColHead,
+          layout.listCol + layout.listW,
+          1,
+          fg(theme.border, "│"),
+        );
+        paintDetailHeader();
+      }
+      paintAllList();
+      paintDetail();
+      paintFooter();
+      write(move(layout.rowFooter, 1));
+    } finally {
+      endBatch();
+    }
+  }
+
+  /** Only right pane + footer (expand / collapse message). */
+  function paintChatPaneOnly(): void {
+    beginBatch();
+    try {
+      paintDetailHeader();
+      paintDetail();
+      paintFooter();
+      write(move(layout.rowFooter, 1));
+    } finally {
+      endBatch();
+    }
+  }
+
   function fullPaint(): void {
     // Flood canvas dark first (light terminals would otherwise stay white)
     write(move(1, 1) + sgrDefault() + `${ESC}[2J` + move(1, 1));
@@ -1621,19 +1704,7 @@ export async function runRawTui(
         1,
         fg(theme.border, "│"),
       );
-      // detail header: label + right border (highlight when chat focus)
-      {
-        const label = detailHeaderLabel();
-        const headColor =
-          focusPane === "detail" ? theme.title : theme.accent;
-        paintCell(
-          layout.rowColHead,
-          layout.detailCol,
-          layout.detailW,
-          fg(headColor, padEndWidth(label, layout.detailW - 1)) +
-            fg(theme.border, "│"),
-        );
-      }
+      paintDetailHeader();
       paintRule(layout.rowRuleHead, "head");
     } else {
       paintCell(
