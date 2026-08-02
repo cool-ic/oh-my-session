@@ -664,17 +664,11 @@ export async function runRawTui(
     const srcPlain = sourcePlain(s.source);
     const agePlain = padStartWidth(formatAge(s.lastActive, now), LC.age);
     const msgsPlain = padStartWidth(String(s.messageCount), LC.msgs);
-    const tg = sessionTag(s);
+    // Tag only on left rail — not appended after title
     const titleRaw = s.title.replace(/\s+/g, " ");
-    const titleWithTag =
-      tg && !editing
-        ? truncateWidth(titleRaw, Math.max(4, layout.titleW - displayWidth(tg) - 2)) +
-          " " +
-          tg
-        : titleRaw;
     const titlePlain = editing
       ? titleRenameCell(layout.titleW)
-      : padEndWidth(titleWithTag, layout.titleW);
+      : padEndWidth(titleRaw, layout.titleW);
     const pathPlain = pathCellPlain(s);
 
     const style =
