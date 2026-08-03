@@ -165,7 +165,6 @@ Wide terminals (≥ ~120 cols): **tags | session table | detail/chat**.
 | `*` | Star / unstar — pin top; **blocks `dd`** until unstarred |
 | `i` | Rename title (saved to local CSV) |
 | `/` | Search title / id / path |
-| `s` / `h` / `c` | Cycle source · health · clear filters |
 | `y` `yy` `r` | Copy **resume command** to clipboard; never runs it |
 | `dd` | Mark delete (selection or cursor; skipped if starred) |
 | `u` | Undo last delete mark |

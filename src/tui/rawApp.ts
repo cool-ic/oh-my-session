@@ -106,15 +106,12 @@ const HELP_GROUPS: ReadonlyArray<{ title: string; keys: [string, string][] }> =
       ],
     },
     {
-      title: "Search & filters",
+      title: "Search",
       keys: [
         ["/", "Search title / id / path (vim-style)"],
         ["  · Enter", "Apply search"],
         ["  · Esc", "Abort · restore previous"],
         ["  · BS empty", "Exit search"],
-        ["s", "Cycle source filter"],
-        ["h", "Cycle health filter (ok/empty/missing)"],
-        ["c", "Clear all filters + multi-select + tag filter"],
       ],
     },
     {
@@ -146,21 +143,6 @@ const HELP_GROUPS: ReadonlyArray<{ title: string; keys: [string, string][] }> =
       ],
     },
   ];
-
-const SOURCES: Array<AgentSource | "all"> = [
-  "all",
-  "grok",
-  "qoder",
-  "claude",
-  "codex",
-  "cursor",
-];
-const HEALTH_FILTERS: Array<SessionHealth | "all"> = [
-  "all",
-  "ok",
-  "empty",
-  "missing",
-];
 
 /**
  * Fixed column widths (display cols).
@@ -250,19 +232,6 @@ function clearLine(): string {
 
 function healthOf(s: SessionRecord): SessionHealth {
   return s.health ?? "ok";
-}
-
-function healthFilterName(h: SessionHealth | "all"): string {
-  switch (h) {
-    case "all":
-      return "All";
-    case "ok":
-      return "OK";
-    case "empty":
-      return "Empty";
-    case "missing":
-      return "Missing";
-  }
 }
 
 function stripAnsi(s: string): string {
@@ -483,8 +452,6 @@ export async function runRawTui(
   let renameBuf = "";
   /** Title when edit started — used only if empty commit */
   let renameOrig = "";
-  let sourceIdx = 0;
-  let healthIdx = 0;
   let cursor = 0;
   let offset = 0;
   let statusLine = "";
@@ -551,13 +518,9 @@ export async function runRawTui(
   }
 
   function filteredList(): SessionRecord[] {
-    const sourceFilter = SOURCES[sourceIdx];
-    const healthFilter = HEALTH_FILTERS[healthIdx];
     const q = filter.trim().toLowerCase();
     const out = allSessions.filter((s) => {
       if (pendingDelete.has(sessionKey(s))) return false;
-      if (sourceFilter !== "all" && s.source !== sourceFilter) return false;
-      if (healthFilter !== "all" && healthOf(s) !== healthFilter) return false;
       if (tagFilter != null && sessionTag(s) !== tagFilter) return false;
       if (!q) return true;
       return [s.title, s.id, s.cwd ?? "", s.source, sessionTag(s) ?? ""]
@@ -1686,10 +1649,6 @@ export async function runRawTui(
           : "msg list · ↑↓ · Enter full · Esc sessions";
     if (tagFilter) msg += (msg ? " · " : "") + `tag:${tagFilter}`;
     if (filter) msg += (msg ? " · " : "") + `filter "${filter}"`;
-    if (sourceIdx !== 0) msg += (msg ? " · " : "") + SOURCES[sourceIdx];
-    if (healthIdx !== 0)
-      msg +=
-        (msg ? " · " : "") + healthFilterName(HEALTH_FILTERS[healthIdx]);
     if (statusLine) msg += (msg ? " · " : "") + statusLine;
     if (pending) msg += (msg ? " · " : "") + pending + "…";
     if (multiSelect.size)
@@ -2099,15 +2058,12 @@ export async function runRawTui(
   }
 
   /**
-   * Pool for bulk health select: respect source + search, ignore health filter
-   * (so :empty still works while viewing OK-only), skip already pending-delete.
+   * Pool for bulk health select: respect search, skip already pending-delete.
    */
   function bulkSelectPool(): SessionRecord[] {
-    const sourceFilter = SOURCES[sourceIdx];
     const q = filter.trim().toLowerCase();
     return allSessions.filter((s) => {
       if (pendingDelete.has(sessionKey(s))) return false;
-      if (sourceFilter !== "all" && s.source !== sourceFilter) return false;
       if (!q) return true;
       return [s.title, s.id, s.cwd ?? "", s.source]
         .join(" ")
@@ -2905,41 +2861,6 @@ export async function runRawTui(
       if (str === "i") {
         if (focusPane !== "sessions") return;
         startRename();
-        return;
-      }
-      if (str === "c") {
-        if (focusPane === "detail") return;
-        filter = "";
-        sourceIdx = 0;
-        healthIdx = 0;
-        tagFilter = null;
-        tagCursor = 0;
-        tagOffset = 0;
-        multiSelect.clear();
-        statusLine = "";
-        rebuildList();
-        dropChatIfCursorMoved();
-        fullPaint();
-        return;
-      }
-      if (str === "s") {
-        if (focusPane === "detail") return;
-        sourceIdx = (sourceIdx + 1) % SOURCES.length;
-        cursor = 0;
-        offset = 0;
-        rebuildList();
-        dropChatIfCursorMoved();
-        fullPaint();
-        return;
-      }
-      if (str === "h") {
-        if (focusPane === "detail") return;
-        healthIdx = (healthIdx + 1) % HEALTH_FILTERS.length;
-        cursor = 0;
-        offset = 0;
-        rebuildList();
-        dropChatIfCursorMoved();
-        fullPaint();
         return;
       }
       if (str === "H") {
