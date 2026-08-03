@@ -15,6 +15,7 @@
    - TUI 中 `Space` 片选、`:empty`/`:missing`/`:bad` 批量片选、`dd` **标记**删除（有片选则批量；否则当前行）→ 仅在 **`:wq`** 时由 `lib/delete-session.ts` 删除对应会话存储（Grok 会话目录 / Qoder jsonl+meta+dir / Claude jsonl）。**无确认框**。
    - TUI 中 **`i` rename**：写 **`data/session-titles.csv`**，不改 Agent 原生存储。  
    - TUI 中 **`*` star**：写 **`data/session-stars.csv`**；星标会话置顶且 **`dd` 不可删**，须先取消星标。  
+   - TUI 中 **`:retention`**：这是**唯一**允许写 Agent **配置文件**（`~/.qoder/settings.json`、`~/.claude/settings.json`）的路径；会话存储本身仍然只读。约束：**必须**先在浮层里展示要改的键与文件路径并等用户 `y` 确认；read-modify-write 保留其余所有键；写前把原文件复制为 `settings.json.bak`；原文件不是合法 JSON 时**拒绝**写入并提示手改；落盘用 `.tmp` + `rename` 原子替换。启动时只做只读体检（footer / stderr 提示），**不**自动改配。
 4. **允许**：改本仓库代码与文档；跑只读对照（`grok sessions list` 等）。  
 5. **允许**：读会话元数据；**禁止**把完整 transcript 正文写入本仓库常驻文档或提交 git。  
 6. **退出**（vim 语义）：
@@ -39,7 +40,8 @@
 | 变量 | 含义 |
 |------|------|
 | `GROK_HOME` | Grok 根，默认 `~/.grok` |
-| `QODER_HOME` | Qoder 根，默认 `~/.qoder` |
+| `QODER_CONFIG_DIR` | Qoder 根，默认 `~/.qoder`（官方文档变量，优先级最高） |
+| `QODER_HOME` | Qoder 根旧变量，仅作兼容回退 |
 | `CLAUDE_CONFIG_DIR` | Claude 根，默认 `~/.claude` |
 | `CODEX_HOME` | Codex 根，默认 `~/.codex` |
 | `AGENT_SESSION_SOURCES` | 逗号分隔 source 过滤，如 `grok,qoder` |

@@ -7,6 +7,7 @@ import { applyTitleOverrides } from "./lib/title-store.js";
 import { applyStarFlags } from "./lib/star-store.js";
 import { applyTags } from "./lib/tag-store.js";
 import { formatTable } from "./lib/format.js";
+import { retentionRisks } from "./lib/retention.js";
 import { runRawTui } from "./tui/rawApp.js";
 
 function loadSessions(opts: {
@@ -46,6 +47,7 @@ Notes:
   OK/Empty/Missing = has messages / 0 msgs / resume path gone on disk
 
 Keys: ↑↓ Space · * star · i rename · dd · :empty/:bad · / search · y copy · :q/:wq
+      :retention  check & disable agent session auto-deletion (asks first)
 `);
 }
 
@@ -96,6 +98,17 @@ function parseArgs(argv: string[]): {
   return out;
 }
 
+/** stderr, so --list / --json stdout stays pipe-safe */
+function warnRetention(): void {
+  const risks = retentionRisks();
+  if (risks.length === 0) return;
+  for (const r of risks) {
+    console.error(`⚠ ${r.notice}`);
+    console.error(`  Suggested config: ${r.fixHint}  (${r.settingsPath})`);
+  }
+  console.error("  Run the TUI and type :retention to apply it (asks first).");
+}
+
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
@@ -116,12 +129,14 @@ async function main(): Promise<void> {
 
   if (args.list) {
     console.log(formatTable(sessions));
+    warnRetention();
     return;
   }
 
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
     console.error("TTY required. Falling back to --list:");
     console.log(formatTable(sessions));
+    warnRetention();
     return;
   }
 

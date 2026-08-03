@@ -183,6 +183,7 @@ gutter 列画 │；表头行接缝用 ┬
 | `:q` | `:quit` | **无待删标记时退出**（无修改即可走） |
 | `:q!` | — | 丢弃全部 `dd` 标记后强制退出（不删盘） |
 | `:wq` | `:x` | 应用全部 `dd` 删除并退出 |
+| `:retention` | `:ret` | 打开保留期浮层：展示 Agent 自动删会话的配置，`y` 确认后改写 |
 | `:help` | `:h` · `:?` | 底栏列出可用命令 |
 
 **片选语义：** `Space` 只切换勾选，不删。勾选集合跨筛选保留（按 `source:id`）；`dd` 对勾选集合批量标记删除后清空勾选。
@@ -198,6 +199,7 @@ gutter 列画 │；表头行接缝用 ┬
 
 **Rename 语义（`i`）：** 立即写入本仓库 CSV，不经过 `:wq`，**不**改 Agent 原生存储。
 
+**Retention 语义（`:retention`）：** 唯一会写 Agent **配置文件** 的路径（`settings.json`），必须 `y` 确认；保留其余键、留 `.bak`、`.tmp`+rename 原子写。启动只做只读体检并在 footer 提示。详见 constraints §1.3。
 | 位置 | 格式 |
 |------|------|
 | `data/session-titles.csv` | `source,id,title,updated_at`（逗号/引号按 RFC4180） |

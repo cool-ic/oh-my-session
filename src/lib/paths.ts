@@ -12,7 +12,13 @@ export function grokHome(home = os.homedir()): string {
 }
 
 export function qoderHome(home = os.homedir()): string {
-  return expandHome(process.env.QODER_HOME || path.join(home, ".qoder"), home);
+  // QODER_CONFIG_DIR is the documented override; QODER_HOME kept for compat.
+  return expandHome(
+    process.env.QODER_CONFIG_DIR ||
+      process.env.QODER_HOME ||
+      path.join(home, ".qoder"),
+    home,
+  );
 }
 
 export function claudeHome(home = os.homedir()): string {

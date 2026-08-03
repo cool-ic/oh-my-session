@@ -39,9 +39,10 @@ oh-my-sessions/
       star-store.ts           # data/session-stars.csv；置顶 + 禁 dd
       tag-store.ts            # data/session-tags.csv；一会话一 tag
       transcript.ts           # Enter 聊天：近→远 user/assistant
+      retention.ts            # 保留期体检 + :retention 确认后改 settings.json
       time.ts                 # formatAge 2s|30m|5d|1mo
       width.ts                # CJK 显示宽 / pad / truncate
-      paths.ts                # GROK_HOME 等
+      paths.ts                # QODER_CONFIG_DIR / GROK_HOME 等
       fsutil.ts               # 只读 fs
       jsonl-text.ts           # jsonl content → 纯文本
     tui/
@@ -72,6 +73,7 @@ oh-my-sessions/
 | `lib/health` | health 分类 | 提取路径（在 discover） |
 | `lib/format` | 纯文本表、resume 文案 | 绘制 |
 | `lib/width` | 终端列几何 | 业务 |
+| `lib/retention` | 体检 Agent 自动删会话的配置；确认后合并写回 settings.json | 决定何时提示（在 rawApp / index） |
 | `tui/rawApp` | 分栏、表列、按键、差分重绘 | 发现逻辑 |
 | `tui/theme` | 色板 | 布局数字 |
 | `index.ts` | 参数、挂载 | 业务细节 |

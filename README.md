@@ -2,7 +2,7 @@
 
 # oh-my-sessions
 
-**One TUI to rule all your local agent sessions.**
+**A local file manager for the AI coding sessions you haven't finished.**
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg)](https://nodejs.org/)
@@ -12,11 +12,25 @@
 
 **English** · [中文速览](./docs/README_zh-CN.md)
 
-<br/>
-
-List, inspect, tag, and clean up sessions from **Grok Build**, **Qoder**, and **Claude Code** — with resume commands, health badges, and a read-only chat transcript.
-
 </div>
+
+Every Qoder, Claude Code, or Grok session is a workbench: a repo path, a trail of
+decisions, a half-built mental model, and sometimes a fix that was almost done.
+
+A week later that workbench is an opaque UUID in a folder you don't remember.
+You didn't just forget the session id — you forgot which repo the agent had
+loaded, which bug it had already diagnosed, which constraints you'd already
+explained, and which half-finished fix was waiting to continue.
+
+`oh-my-sessions` doesn't remember that work for you. It makes sure the record of
+it is still there, and that you can find it again in one place: search across
+every agent, rename and tag and star what matters, preview the transcript, and
+copy the exact resume command when you're ready to continue.
+
+> **Your agents delete this history on a timer.** Claude Code removes sessions
+> unused for 30 days by default — and it cannot be switched off, only pushed far
+> out (its own schema rejects `0`). Qoder has a similar cleanup setting. Run
+> `:retention` and oh-my-sessions will show you the config and apply it for you.
 
 ---
 
@@ -56,6 +70,7 @@ You use more than one coding agent. Each dumps sessions into a different home di
 - **Chat preview** — Enter opens a **view-only** transcript, newest first; Esc back to the list
 - **Vim-ish TUI** — ↑↓ · gg/G · `/` search · Space multi-select · `dd` + `:wq` delete
 - **Organize locally** — rename (`i`), star (`*`), tag (`t`) — **never rewrites agent stores**
+- **Retention check** — warns when an agent is set to auto-delete old sessions; `:retention` applies the config for you (asks first, keeps a `.bak`)
 - **Private by default** — titles / stars / tags live in gitignored CSV under `data/`
 - **Auto refresh** — re-scans disk every 8s while idle
 - **Scriptable** — `--list` / `--json` for pipes and automation
@@ -155,6 +170,7 @@ Wide terminals (≥ ~120 cols): **tags | session table | detail/chat**.
 | `:empty` `:missing` `:bad` | Bulk-select by health |
 | `:wq` | **Apply** deletes and quit |
 | `:q` / `:q!` | Quit if clean · force quit discard marks |
+| `:retention` | Stop agents auto-deleting old sessions (shows the change, asks first) |
 | `:help` | Full shortcut overlay |
 
 Bare `q` and `Ctrl-C` **do not** quit (avoids losing pending deletes).
@@ -196,6 +212,8 @@ Runtime-only (not persisted): search filters, multi-select, scroll, open chat.
 
 - **No network** for discovery — everything is local filesystem.
 - **Delete** only happens on `:wq` after explicit `dd` marks.
+- **Agent settings** are only written by `:retention`, after you confirm — it keeps
+  every other key, and copies the old file to `settings.json.bak`.
 - **Chat** reads jsonl / updates streams; shows user + assistant only (no tools/thoughts).
 
 Architecture map: [`d/codemap.md`](./d/codemap.md).
@@ -241,6 +259,7 @@ oh-my-sessions/
 |----------|--------|
 | `AGENT_SESSION_SOURCES` | Comma list, e.g. `grok,claude` (default: `grok,qoder,claude`) |
 | `GROK_HOME` | Grok data root (if set by the Grok tooling) |
+| `QODER_CONFIG_DIR` | Qoder config root override (defaults to `~/.qoder`) |
 | `CLAUDE_CONFIG_DIR` | Claude config root override |
 
 ---

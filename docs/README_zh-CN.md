@@ -2,7 +2,7 @@
 
 # oh-my-sessions
 
-**一个 TUI，管齐你本机所有 Agent 会话。**
+**一份本机 AI coding 会话的文件管理器 —— 尤其是那些还没做完的。**
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](../LICENSE)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg)](https://nodejs.org/)
@@ -17,6 +17,22 @@
 统一列举、查看、打标、清理 **Grok Build**、**Qoder**、**Claude Code** 等本地会话：续跑命令、健康状态、只读对话回看。
 
 </div>
+
+每一个 Qoder / Claude Code / Grok 会话都是一个"工作现场"：一个仓库路径、一串决策、
+一个搭了一半的心智模型，有时还有一个差一点就改好的修复。
+
+一周之后，这个现场只剩下一个你已经想不起来的目录里的一串 UUID。你忘掉的不只是
+session id —— 还有 Agent 当时加载的是哪个仓库、它已经定位到了哪个 bug、你已经跟它
+解释过哪些约束，以及那个等着继续的半成品改动。
+
+`oh-my-sessions` 不会替你记住这些工作。它保证这份记录还在，并且你能在一个地方重新
+找到它：跨 Agent 搜索，重命名 / 打标 / 星标你在意的，预览对话，然后在你准备继续时
+复制出完全正确的 resume 命令。
+
+> **你的 Agent 会按时间自动删掉这些记录。** Claude Code 默认删除 30 天未使用的
+> 会话，而且它无法真正关闭，只能把期限推远（它自己的 schema 拒绝 `0`）。Qoder 也有
+> 类似的清理设置。运行 `:retention`，oh-my-sessions 会把要改的配置给你看，确认后
+> 帮你改好。
 
 ---
 
@@ -56,6 +72,7 @@
 - **对话预览** — Enter 打开**只读** transcript，最新在上；Esc 回中间列表
 - **Vim 风格 TUI** — ↑↓ · gg/G · `/` 搜索 · Space 片选 · `dd` + `:wq` 删除
 - **本地整理** — 重命名（`i`）、星标（`*`）、标签（`t`）— **绝不改写**各 Agent 原生存储
+- **保留期检查** — 发现 Agent 正在自动删除旧会话时给出提示；`:retention` 确认后一键改配（并留 `.bak`）
 - **默认隐私** — 标题 / 星标 / 标签写在 gitignore 的 `data/*.csv`
 - **自动刷新** — 空闲时每 8 秒重扫磁盘
 - **可脚本化** — `--list` / `--json` 便于管道与自动化
@@ -155,6 +172,7 @@ oh-my-sessions --help
 | `:empty` `:missing` `:bad` | 按健康状态批量片选 |
 | `:wq` | **应用**删除并退出 |
 | `:q` / `:q!` | 无待删时退出 · 丢弃标记强制退出 |
+| `:retention` | 阻止 Agent 自动删除旧会话（展示改动，确认后生效） |
 | `:help` | 完整快捷键浮层 |
 
 裸 `q` 与 `Ctrl-C` **不会**退出（防止误丢待删标记）。
@@ -196,6 +214,8 @@ oh-my-sessions --help
 
 - 发现过程**不访问网络** — 只读本地文件系统。
 - **删除**仅在 `:wq` 且经过明确 `dd` 标记后执行。
+- **Agent 配置**只有 `:retention` 在你确认之后才会写入：保留其余所有键，并把原文件
+  备份为 `settings.json.bak`。
 - **聊天**读 jsonl / updates；只显示 user + assistant（不含 tool / thought）。
 
 架构图：[`d/codemap.md`](../d/codemap.md)。
@@ -218,6 +238,7 @@ oh-my-sessions --help
 |------|------|
 | `AGENT_SESSION_SOURCES` | 逗号分隔，如 `grok,claude`（默认 `grok,qoder,claude`） |
 | `GROK_HOME` | Grok 数据根目录 |
+| `QODER_CONFIG_DIR` | Qoder 配置目录覆盖（默认 `~/.qoder`） |
 | `CLAUDE_CONFIG_DIR` | Claude 配置目录覆盖 |
 
 ---

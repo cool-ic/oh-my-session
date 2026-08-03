@@ -33,6 +33,12 @@ import {
   readTranscript,
   type TranscriptTurn,
 } from "../lib/transcript.js";
+import {
+  auditRetention,
+  fixRetention,
+  retentionWarning,
+  type RetentionFinding,
+} from "../lib/retention.js";
 import { sortKeyLastActive } from "../lib/time.js";
 import {
   displayWidth,
@@ -125,6 +131,7 @@ const HELP_GROUPS: ReadonlyArray<{ title: string; keys: [string, string][] }> =
         [":q", "Quit if no pending deletes"],
         [":q!", "Quit · discard pending deletes"],
         [":wq / :x", "Apply deletes and quit"],
+        [":retention", "Stop agents auto-deleting sessions (asks first)"],
         [":help / :h / :?", "This help"],
       ],
     },
@@ -494,6 +501,15 @@ export async function runRawTui(
   /** :help overlay */
   let helpMode = false;
   let helpOffset = 0;
+  /**
+   * Retention audit: agents whose settings.json lets them delete transcripts.
+   * Checked once at startup; `:retention` opens a confirm overlay that writes.
+   */
+  let retentionFindings: RetentionFinding[] = auditRetention();
+  let retentionRisky = retentionFindings.filter((f) => f.atRisk);
+  /** Confirm overlay for writing settings.json — null = closed */
+  let retentionMode: null | "confirm" | "done" = null;
+  let retentionResultLines: string[] = [];
   /**
    * Detail panel: meta | chat list (1-line previews) | expanded full message.
    * Session Enter → list; list Enter → full; Esc full→list→sessions.
@@ -1528,7 +1544,82 @@ export async function runRawTui(
     }
   }
 
+  /**
+   * Retention overlay: what will change, then the result. Explicit y/n because
+   * this writes to the user's agent config (see lib/retention.ts).
+   */
+  function buildRetentionLines(): string[] {
+    const lines: string[] = [];
+    if (retentionMode === "done") {
+      lines.push("Session retention — applied");
+      lines.push("");
+      lines.push(...retentionResultLines);
+      lines.push("");
+      lines.push("Restart the agent for the new setting to take effect.");
+      return lines;
+    }
+
+    lines.push("Agents are set to delete their own session history");
+    lines.push("");
+    for (const f of retentionRisky) {
+      lines.push(`${f.agent}`);
+      lines.push(`  ${f.notice}`);
+      lines.push(`  Suggested config:  ${f.fixHint}`);
+      lines.push(`  File:  ${f.settingsPath}`);
+      lines.push("");
+    }
+    lines.push(
+      "Applying this keeps every other key in those files unchanged, and",
+    );
+    lines.push(
+      "copies each existing file to settings.json.bak so you can undo it.",
+    );
+    lines.push("Sessions already deleted cannot be recovered.");
+    lines.push("");
+    lines.push("Apply?   y = yes   ·   n / Esc = no");
+    return lines;
+  }
+
+  function paintRetentionOverlay(): void {
+    const lines = buildRetentionLines();
+    const top = layout.rowColHead;
+    const bot = layout.rowRuleFoot;
+    const height = Math.max(1, bot - top);
+
+    for (let i = 0; i < height; i++) {
+      const row = top + i;
+      const raw = lines[i] ?? "";
+      let cell: string;
+      if (i === 0) {
+        cell = fgBg(
+          theme.brandNameFg,
+          theme.brandNameBg,
+          padEndWidth(` ${raw} `, layout.cols),
+        );
+      } else if (raw && !raw.startsWith(" ")) {
+        cell = fg(theme.warn, padEndWidth(raw, layout.cols));
+      } else {
+        cell = fg(theme.text, padEndWidth(raw, layout.cols));
+      }
+      paintFullRow(row, cell);
+    }
+  }
+
   function paintFooter(): void {
+    if (retentionMode) {
+      paintFullRow(
+        layout.rowFooter,
+        fg(theme.dim, " ") +
+          fgBg(theme.editFg, theme.editBg, " RETENTION ") +
+          fg(
+            theme.dim,
+            retentionMode === "confirm"
+              ? "  y apply  ·  n / Esc cancel"
+              : "  Esc / Enter close",
+          ),
+      );
+      return;
+    }
     if (helpMode) {
       paintFullRow(
         layout.rowFooter,
@@ -1606,14 +1697,34 @@ export async function runRawTui(
         `${multiSelect.size} selected · Space toggle · dd mark all`;
     if (pendingDelete.size)
       msg += (msg ? " · " : "") + `${pendingDelete.size} to delete → :wq`;
+    if (msg) {
+      paintFullRow(
+        layout.rowFooter,
+        fg(theme.accent, " " + truncateWidth(msg, layout.cols - 2)),
+      );
+      return;
+    }
+    // Idle: retention risk outranks the generic key hint — sessions are at stake.
+    if (retentionRisky.length > 0) {
+      paintFullRow(
+        layout.rowFooter,
+        fg(
+          theme.warn,
+          " ⚠ " +
+            truncateWidth(
+              `${retentionWarning(retentionRisky)}  ·  run :retention to fix`,
+              layout.cols - 4,
+            ),
+        ),
+      );
+      return;
+    }
     paintFullRow(
       layout.rowFooter,
-      msg
-        ? fg(theme.accent, " " + truncateWidth(msg, layout.cols - 2))
-        : fg(
-            theme.dim,
-            " Enter chat  ·  Tab focus  ·  t tag  ·  * star  ·  i rename  ·  :wq",
-          ),
+      fg(
+        theme.dim,
+        " Enter chat  ·  Tab focus  ·  t tag  ·  * star  ·  i rename  ·  :wq",
+      ),
     );
   }
 
@@ -1727,6 +1838,14 @@ export async function runRawTui(
 
     if (helpMode) {
       paintHelpOverlay();
+      paintRule(layout.rowRuleFoot, "foot");
+      paintFooter();
+      write(move(layout.rowFooter, 1));
+      return;
+    }
+
+    if (retentionMode) {
+      paintRetentionOverlay();
       paintRule(layout.rowRuleFoot, "foot");
       paintFooter();
       write(move(layout.rowFooter, 1));
@@ -2103,8 +2222,44 @@ export async function runRawTui(
       help: "help",
       h: "help",
       "?": "help",
+      retention: "retention",
+      ret: "retention",
     };
     return map[head] ?? null;
+  }
+
+  function openRetention(): void {
+    // Re-audit: the user may have edited settings.json since startup.
+    retentionFindings = auditRetention();
+    retentionRisky = retentionFindings.filter((f) => f.atRisk);
+    if (retentionRisky.length === 0) {
+      statusLine =
+        retentionFindings.length === 0
+          ? "no qoder/claude config found"
+          : "retention already safe for all agents";
+      paintFooter();
+      return;
+    }
+    retentionMode = "confirm";
+    statusLine = "";
+    fullPaint();
+  }
+
+  function applyRetention(): void {
+    const results = fixRetention();
+    retentionResultLines = results.map((r) =>
+      r.ok
+        ? `  ok     ${r.agent} → ${r.settingsPath}${r.backupPath ? "  (backup written)" : "  (created)"}`
+        : `  FAIL   ${r.agent} → ${r.error ?? "unknown error"}`,
+    );
+    retentionFindings = auditRetention();
+    retentionRisky = retentionFindings.filter((f) => f.atRisk);
+    retentionMode = "done";
+    const failed = results.filter((r) => !r.ok).length;
+    statusLine = failed
+      ? `retention: ${failed} failed`
+      : "retention disabled";
+    fullPaint();
   }
 
   function runExCommand(cmdRaw: string, exit: () => void): void {
@@ -2165,6 +2320,9 @@ export async function runRawTui(
         helpOffset = 0;
         statusLine = "";
         fullPaint();
+        return;
+      case "retention":
+        openRetention();
         return;
       default:
         statusLine = `unknown :${cmdRaw.trim()}  ·  :help`;
@@ -2310,6 +2468,7 @@ export async function runRawTui(
     if (!options.reload) return;
     if (renameMode || cmdMode || filterMode || tagAssignMode || helpMode)
       return;
+    if (retentionMode) return;
     // Avoid clobbering chat scroll mid-read
     if (focusPane === "detail" && detailView === "chat") return;
 
@@ -2370,6 +2529,33 @@ export async function runRawTui(
 
     const onKey = (_str: string | undefined, key: AppKey): void => {
       const str = _str ?? "";
+
+      // ----- retention confirm overlay (writes settings.json — y/n only) -----
+      if (retentionMode) {
+        if (retentionMode === "confirm") {
+          if (key.name === "y" || str === "y" || str === "Y") {
+            applyRetention();
+            return;
+          }
+          if (
+            key.name === "escape" ||
+            key.name === "n" ||
+            str === "n" ||
+            str === "N"
+          ) {
+            retentionMode = null;
+            statusLine = "retention unchanged";
+            fullPaint();
+            return;
+          }
+          return;
+        }
+        if (key.name === "escape" || key.name === "return") {
+          retentionMode = null;
+          fullPaint();
+        }
+        return;
+      }
 
       // ----- :help overlay (first) -----
       if (helpMode) {
