@@ -155,8 +155,8 @@ Wide terminals (≥ ~120 cols): **tags | session table | detail/chat**.
 
 | Key | Action |
 |-----|--------|
-| `↑` `↓` · `PgUp` `PgDn` · `Ctrl-f` `Ctrl-b` | Move / page |
-| `gg` / `G` · `H` `M` `L` · `z` | Top / bottom · screen · center |
+| `↑` `↓` | Move |
+| `gg` / `G` | Top / bottom |
 | **`Enter`** | Open **chat** (near→far, view only) |
 | **`Esc`** | Close chat → session list · or clear multi-select |
 | `Tab` | Tags rail ↔ sessions (from chat: leave chat → sessions) |
@@ -165,7 +165,7 @@ Wide terminals (≥ ~120 cols): **tags | session table | detail/chat**.
 | `*` | Star / unstar — pin top; **blocks `dd`** until unstarred |
 | `i` | Rename title (saved to local CSV) |
 | `/` | Search title / id / path |
-| `y` `yy` `r` | Copy **resume command** to clipboard; never runs it |
+| `y` | Copy **resume command** to clipboard; never runs it |
 | `dd` | Mark delete (selection or cursor; skipped if starred) |
 | `u` | Undo last delete mark |
 | `:empty` `:missing` `:bad` | Bulk-select by health |

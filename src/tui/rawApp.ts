@@ -4,7 +4,7 @@
  * Columns (display width):
  *   mark2 | status8 | source6 | age5 | msgs5 | title flex | resumeDir flex
  *
- * Keys: ↑↓ Enter Space i gg G dd u y / : … ctrl-f/b H M L
+ * Keys: ↑↓ Enter Space i gg G dd u y / : …
  * Enter = open chat message list (previews); Enter again = full text;
  * Space = toggle multi-select; i = rename title (insert);
  * :empty / :missing / :bad = bulk-select by health (ex cmdline);
@@ -65,10 +65,6 @@ const HELP_GROUPS: ReadonlyArray<{ title: string; keys: [string, string][] }> =
       keys: [
         ["↑ / ↓", "Move cursor in focused pane"],
         ["gg / G", "Top / bottom of session list"],
-        ["H / M / L", "Screen top / middle / bottom"],
-        ["PgUp / PgDn", "Page up / down"],
-        ["Ctrl-f / Ctrl-b", "Page down / up"],
-        ["z", "Center cursor in viewport"],
         ["Tab", "Focus tags rail ↔ session list"],
       ],
     },
@@ -93,7 +89,7 @@ const HELP_GROUPS: ReadonlyArray<{ title: string; keys: [string, string][] }> =
         ["i", "Rename title (inline; Esc/Enter save to CSV)"],
         ["dd", "Mark delete (skipped if starred; apply on :wq)"],
         ["u", "Undo last delete mark"],
-        ["y / yy / r", "Copy resume command to clipboard"],
+        ["y", "Copy resume command to clipboard"],
       ],
     },
     {
@@ -495,8 +491,8 @@ export async function runRawTui(
   const undoStack: SessionRecord[] = [];
   /** Space multi-select (source:id keys). dd acts on all when non-empty. */
   const multiSelect = new Set<string>();
-  /** vim multi-key: d / g / y */
-  let pending: null | "d" | "g" | "y" = null;
+  /** vim multi-key: d / g */
+  let pending: null | "d" | "g" = null;
   let pendingTimer: ReturnType<typeof setTimeout> | null = null;
 
   function sessionKey(s: SessionRecord): string {
@@ -1885,7 +1881,7 @@ export async function runRawTui(
     }
   }
 
-  function armPending(p: "d" | "g" | "y"): void {
+  function armPending(p: "d" | "g"): void {
     clearPending();
     pending = p;
     paintFooter();
@@ -2376,38 +2372,6 @@ export async function runRawTui(
     }
   }
 
-  function goPage(dir: 1 | -1): void {
-    const prevC = cursor;
-    const prevO = offset;
-    cursor = Math.max(0, Math.min(list.length - 1, cursor + dir * layout.page));
-    clampScroll();
-    paintSelectionChange(prevC, prevO);
-  }
-
-  function goScreen(pos: "H" | "M" | "L"): void {
-    const prevC = cursor;
-    const prevO = offset;
-    if (list.length === 0) return;
-    if (pos === "H") cursor = offset;
-    else if (pos === "L")
-      cursor = Math.min(list.length - 1, offset + layout.page - 1);
-    else cursor = Math.min(list.length - 1, offset + Math.floor(layout.page / 2));
-    paintSelectionChange(prevC, prevO);
-  }
-
-  function centerCursor(): void {
-    const prevO = offset;
-    const prevC = cursor;
-    offset = Math.max(
-      0,
-      Math.min(
-        Math.max(0, list.length - layout.page),
-        cursor - Math.floor(layout.page / 2),
-      ),
-    );
-    paintSelectionChange(prevC, prevO);
-  }
-
   function onResize(): void {
     cols = stdout.columns || 80;
     rows = stdout.rows || 24;
@@ -2541,16 +2505,6 @@ export async function runRawTui(
           fullPaint();
           return;
         }
-        if (key.name === "pageup" || (key.ctrl && key.name === "b")) {
-          helpOffset = Math.max(0, helpOffset - layout.page);
-          fullPaint();
-          return;
-        }
-        if (key.name === "pagedown" || (key.ctrl && key.name === "f")) {
-          helpOffset += layout.page;
-          fullPaint();
-          return;
-        }
         return;
       }
 
@@ -2561,26 +2515,6 @@ export async function runRawTui(
             ? `${pendingDelete.size} pending · :wq apply · :q! discard`
             : "use :q to quit (or :wq)";
         paintFooter();
-        return;
-      }
-
-      // full page only (no ctrl-d/u half-page)
-      if (key.ctrl && (key.name === "f" || str === "\u0006")) {
-        clearPending();
-        if (focusPane === "detail" && detailView === "chat") {
-          scrollChat(layout.page);
-          return;
-        }
-        goPage(1);
-        return;
-      }
-      if (key.ctrl && (key.name === "b" || str === "\u0002")) {
-        clearPending();
-        if (focusPane === "detail" && detailView === "chat") {
-          scrollChat(-layout.page);
-          return;
-        }
-        goPage(-1);
         return;
       }
 
@@ -2654,12 +2588,7 @@ export async function runRawTui(
           paintRenameLive();
           return;
         }
-        if (
-          key.name === "up" ||
-          key.name === "down" ||
-          key.name === "pageup" ||
-          key.name === "pagedown"
-        ) {
+        if (key.name === "up" || key.name === "down") {
           return;
         }
         if (str && !key.ctrl && !key.meta && str >= " ") {
@@ -2767,14 +2696,6 @@ export async function runRawTui(
           return;
         }
       }
-      if (pending === "y") {
-        clearPending();
-        if (str === "y") {
-          doYank();
-          return;
-        }
-      }
-
       // bare q does not quit (use :q / :wq); Esc closes chat / clears multi-select
       if (key.name === "q") {
         statusLine =
@@ -2863,26 +2784,6 @@ export async function runRawTui(
         startRename();
         return;
       }
-      if (str === "H") {
-        if (focusPane === "detail") return;
-        goScreen("H");
-        return;
-      }
-      if (str === "M") {
-        if (focusPane === "detail") return;
-        goScreen("M");
-        return;
-      }
-      if (str === "L") {
-        if (focusPane === "detail") return;
-        goScreen("L");
-        return;
-      }
-      if (str === "z") {
-        if (focusPane === "detail") return;
-        centerCursor();
-        return;
-      }
       if (str === "d") {
         if (focusPane === "detail") return;
         armPending("d");
@@ -2893,10 +2794,9 @@ export async function runRawTui(
         armPending("g");
         return;
       }
-      if (str === "y" || str === "r") {
+      if (str === "y") {
         if (focusPane === "detail") return;
-        if (str === "y") armPending("y");
-        else doYank();
+        doYank();
         return;
       }
       if (str === "u") {
@@ -2962,14 +2862,6 @@ export async function runRawTui(
           scrollChat(1);
           return;
         }
-        if (key.name === "pageup") {
-          scrollChat(-layout.page);
-          return;
-        }
-        if (key.name === "pagedown") {
-          scrollChat(layout.page);
-          return;
-        }
         return;
       }
 
@@ -2992,14 +2884,6 @@ export async function runRawTui(
         cursor = Math.min(list.length - 1, cursor + 1);
         clampScroll();
         paintSelectionChange(prevCursor, prevOffset);
-        return;
-      }
-      if (key.name === "pageup") {
-        goPage(-1);
-        return;
-      }
-      if (key.name === "pagedown") {
-        goPage(1);
         return;
       }
     };

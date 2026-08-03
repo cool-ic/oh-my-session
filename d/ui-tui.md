@@ -20,7 +20,7 @@
 - **差分绘制**：滚动时最多重画 2 行列表 + 详情区；禁止 Ink 式整帧 `eraseLines`。  
 - **CJK 对齐**：列宽一律用 `lib/width.ts` 的显示列（中文=2），禁止按 `string.length` 补空格。  
 - **备用屏**：`?1049h` 进入 / 退出还原。  
-- **只读**：`r` 只展示命令字符串，不 spawn 交互 resume（除非 Phase E 明确改）。
+- **只读**：`y` 只复制 resume command，不 spawn 交互 resume（除非 Phase E 明确改）。
 
 ---
 
@@ -29,7 +29,7 @@
 ### 3.1 宽屏（`cols >= 100`）— 左右分栏
 
 **默认不显示**统计/筛选墙文（用户要求去掉无区分度的大段字）。  
-仅当 `/` 搜索、或 `h`/`s` 非默认筛选、或 `r` 有命令时，才出现 **1 行**瞬时 chrome。
+仅当 `/` 搜索或 `y` 复制命令后，才出现 **1 行**瞬时 chrome。
 
 ```
 脑门  oh-my-sessions  · 快捷键  ·  1/84
@@ -134,8 +134,6 @@ gutter 列画 │；表头行接缝用 ┬
 | grok | `grok --resume <id>` | recommended（ID 全局；标题/-c 认当前目录） |
 | claude | 建议 `cd && claude --resume` | recommended |
 
-`r` 键：把 command 写到搜索行状态区（不写 stderr，避免刷屏）。
-
 ---
 
 ## 8. 快捷键（vim 风格）
@@ -145,15 +143,12 @@ gutter 列画 │；表头行接缝用 ┬
 | `↑↓` | 下 / 上（焦点在列表 / 标签栏 / 聊天详情时各自滚动） |
 | **`Enter`** | **打开对话**：右侧栏显示该会话 transcript，**近→远**（最新在上）；焦点切到 detail |
 | `gg` / `G` | 列表首 / 末 |
-| `ctrl-f` / `ctrl-b` · `PgDn`/`PgUp` | 整页下 / 上（detail 时翻聊天） |
-| `H` / `M` / `L` | 屏首 / 中 / 末 行 |
-| `z` | 将当前行滚到视口中部（近似 zz） |
 | **`Space`** | **片选**：切换 multi-select（行首 `*`；脑门 `sel:N`） |
 | **`*`** | **星标 / 取消**：CSV 持久化；**置顶**；**禁止 `dd`**，需先 `*` 取消星标 |
 | **`i`** | **Rename**：TITLE 内联编辑；**Esc** / **Enter** 写 CSV |
 | `dd` | **标记删除**（片选批量 / 当前行）；**跳过已星标**并提示 |
 | `u` | 撤销最近一次删除标记（恢复列表；多次 `dd` 可逐条 undo） |
-| `y` / `yy` / `r` | **copy resume command** 到系统剪贴板；macOS 用 `pbcopy`；失败时底栏显示命令；不执行 |
+| `y` | **copy resume command** 到系统剪贴板；macOS 用 `pbcopy`；失败时底栏显示命令；不执行 |
 | `/` | **vim 搜索**：底栏 `/pattern`；实时过滤；**Enter** 确认；**Esc** 取消并恢复；**BS 在空 pattern 上退出**（`/` 本身不可“删除”，它是提示符不是缓冲字符） |
 | `Tab` | 焦点：detail → sessions → tags → sessions |
 | Esc | **关闭聊天**（若已打开）→ 清空片选 → 否则提示 `:q` / `:wq` |

@@ -65,7 +65,7 @@
 ## 5. TUI / CLI
 
 - 日常入口：`npm start`  
-- `y` / `r`：= **copy resume command** 到系统剪贴板；macOS 使用系统自带 `pbcopy`；失败时仅在底栏展示命令，不 spawn resume 命令  
+- `y`：= **copy resume command** 到系统剪贴板；macOS 使用系统自带 `pbcopy`；失败时仅在底栏展示命令，不 spawn resume 命令  
 - **`i`**：rename → `data/session-titles.csv`（见 §1.3）  
 - `Space` → 片选切换；`:empty`/`:missing`/`:bad`（或 `:sel …`）→ 批量片选；`dd` → 标记删除（片选批量 / 否则当前行）；`:wq` → **真正删盘** 并退出（见上 §1.3 / §1.6）  
 - **禁止**全帧 erase 重绘（workflow §2.6；BUG-001）  
