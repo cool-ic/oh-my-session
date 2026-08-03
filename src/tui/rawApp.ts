@@ -89,7 +89,7 @@ const HELP_GROUPS: ReadonlyArray<{ title: string; keys: [string, string][] }> =
         ["i", "Rename title (inline; Esc/Enter save to CSV)"],
         ["dd", "Mark delete (skipped if starred; apply on :wq)"],
         ["u", "Undo last delete mark"],
-        ["y", "Copy resume command to clipboard"],
+        ["yy", "Copy resume command to clipboard"],
       ],
     },
     {
@@ -491,8 +491,8 @@ export async function runRawTui(
   const undoStack: SessionRecord[] = [];
   /** Space multi-select (source:id keys). dd acts on all when non-empty. */
   const multiSelect = new Set<string>();
-  /** vim multi-key: d / g */
-  let pending: null | "d" | "g" = null;
+  /** vim multi-key: d / g / y */
+  let pending: null | "d" | "g" | "y" = null;
   let pendingTimer: ReturnType<typeof setTimeout> | null = null;
 
   function sessionKey(s: SessionRecord): string {
@@ -916,7 +916,7 @@ export async function runRawTui(
           mid +
           key(":bad"),
         tag(" copy ") +
-          key("y") +
+          key("yy") +
           hint(" resume command") +
           soft +
           tag(" search ") +
@@ -942,7 +942,7 @@ export async function runRawTui(
           key(":missing") +
           mid +
           key(":bad"),
-        tag(" copy ") + key("y") + soft + tag(" search ") + key("/"),
+        tag(" copy ") + key("yy") + soft + tag(" search ") + key("/"),
         tag(" quit ") + key(":q") + mid + key(":wq"),
       ].join(soft),
       // compact
@@ -958,7 +958,7 @@ export async function runRawTui(
           mid +
           key("dd"),
         tag("bulk") + key(":e") + mid + key(":m") + mid + key(":bad"),
-        tag("y") + key("y") + mid + tag("/") + key("/"),
+        tag("yy") + key("yy") + mid + tag("/") + key("/"),
         tag("q") + key(":q") + mid + key(":wq"),
       ].join(soft),
       // minimal
@@ -967,7 +967,7 @@ export async function runRawTui(
         key("↑↓"),
         key("Space") + mid + key("*") + mid + key("i") + mid + key("dd"),
         key(":e") + mid + key(":m") + mid + key(":bad"),
-        key("y") + mid + key("/"),
+        key("yy") + mid + key("/"),
         key(":q") + mid + key(":wq"),
       ].join(soft),
       name,
@@ -1881,7 +1881,7 @@ export async function runRawTui(
     }
   }
 
-  function armPending(p: "d" | "g"): void {
+  function armPending(p: "d" | "g" | "y"): void {
     clearPending();
     pending = p;
     paintFooter();
@@ -2283,7 +2283,7 @@ export async function runRawTui(
     }
   }
 
-  /** y = copy resume command to system clipboard (macOS: pbcopy). */
+  /** yy = copy resume command to system clipboard (macOS: pbcopy). */
   function doYank(): void {
     const s = list[cursor];
     if (!s) return;
@@ -2696,6 +2696,13 @@ export async function runRawTui(
           return;
         }
       }
+      if (pending === "y") {
+        clearPending();
+        if (str === "y") {
+          doYank();
+          return;
+        }
+      }
       // bare q does not quit (use :q / :wq); Esc closes chat / clears multi-select
       if (key.name === "q") {
         statusLine =
@@ -2796,7 +2803,7 @@ export async function runRawTui(
       }
       if (str === "y") {
         if (focusPane === "detail") return;
-        doYank();
+        armPending("y");
         return;
       }
       if (str === "u") {

@@ -68,7 +68,7 @@ You use more than one coding agent. Each dumps sessions into a different home di
 
 - **Multi-agent discovery** — Grok Build, Qoder, Claude Code (Codex / Cursor reserved)
 - **Health at a glance** — `OK` · `Empty` · `Missing` (path gone but still shown)
-- **Resume-ready** — `y` copies the exact command to your clipboard (macOS works out of the box via `pbcopy`; Qoder includes `cd …`)
+- **Resume-ready** — `yy` copies the exact command to your clipboard (macOS works out of the box via `pbcopy`; Qoder includes `cd …`)
 - **Chat preview** — Enter opens a **view-only** transcript, newest first; Esc back to the list
 - **Vim-ish TUI** — ↑↓ · gg/G · `/` search · Space multi-select · `dd` + `:wq` delete
 - **Organize locally** — rename (`i`), star (`*`), tag (`t`) — **never rewrites agent stores**
@@ -165,7 +165,7 @@ Wide terminals (≥ ~120 cols): **tags | session table | detail/chat**.
 | `*` | Star / unstar — pin top; **blocks `dd`** until unstarred |
 | `i` | Rename title (saved to local CSV) |
 | `/` | Search title / id / path |
-| `y` | Copy **resume command** to clipboard; never runs it |
+| `yy` | Copy **resume command** to clipboard; never runs it |
 | `dd` | Mark delete (selection or cursor; skipped if starred) |
 | `u` | Undo last delete mark |
 | `:empty` `:missing` `:bad` | Bulk-select by health |
