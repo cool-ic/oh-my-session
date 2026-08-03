@@ -48,10 +48,6 @@ Chat view after **Enter** (near→far; **Esc** back to sessions):
 
 ![Retention overlay](./docs/images/tui-retention.png)
 
-> Captured live with `./scripts/screenshot.sh` (`npm start` inside tmux → ANSI → PNG).
-> It runs against a generated demo fixture, so the shots are reproducible and
-> contain no real session data.
-
 ---
 
 ## Why?
@@ -72,7 +68,7 @@ You use more than one coding agent. Each dumps sessions into a different home di
 
 - **Multi-agent discovery** — Grok Build, Qoder, Claude Code (Codex / Cursor reserved)
 - **Health at a glance** — `OK` · `Empty` · `Missing` (path gone but still shown)
-- **Resume-ready** — footer / `y` shows the exact command (Qoder includes `cd …`)
+- **Resume-ready** — `y` copies the exact command to your clipboard (macOS works out of the box via `pbcopy`; Qoder includes `cd …`)
 - **Chat preview** — Enter opens a **view-only** transcript, newest first; Esc back to the list
 - **Vim-ish TUI** — ↑↓ · gg/G · `/` search · Space multi-select · `dd` + `:wq` delete
 - **Organize locally** — rename (`i`), star (`*`), tag (`t`) — **never rewrites agent stores**
@@ -170,7 +166,7 @@ Wide terminals (≥ ~120 cols): **tags | session table | detail/chat**.
 | `i` | Rename title (saved to local CSV) |
 | `/` | Search title / id / path |
 | `s` / `h` / `c` | Cycle source · health · clear filters |
-| `y` `yy` `r` | Show **resume command** in footer (copy yourself; never runs it) |
+| `y` `yy` `r` | Copy **resume command** to clipboard; never runs it |
 | `dd` | Mark delete (selection or cursor; skipped if starred) |
 | `u` | Undo last delete mark |
 | `:empty` `:missing` `:bad` | Bulk-select by health |
@@ -226,27 +222,6 @@ Architecture map: [`d/codemap.md`](./d/codemap.md).
 
 ---
 
-## Screenshots (reproduce)
-
-```bash
-# needs: tmux, Python3 + Pillow, and a dual-width CJK mono font
-# (Noto Sans Mono CJK is used automatically if installed)
-./scripts/screenshot.sh main         # → docs/images/tui-main.png
-./scripts/screenshot.sh chat         # → docs/images/tui-chat.png
-./scripts/screenshot.sh retention    # → docs/images/tui-retention.png
-```
-
-Shots run against a throwaway fixture built by `scripts/demo-fixture.mjs`, so
-they never read or write your real sessions, titles or stars.
-
-| Env | Effect |
-|-----|--------|
-| `OMS_SHOT_FONT_SIZE` | Render size, default `32` (higher = sharper, larger PNG) |
-| `OMS_SHOT_COLS` / `OMS_SHOT_ROWS` | Terminal geometry in cells, default `150` × `21` |
-| `OMS_SHOT_REAL=1` | Shoot your own sessions instead of the fixture |
-
----
-
 ## Project layout
 
 ```
@@ -285,7 +260,6 @@ oh-my-sessions/
 ## Roadmap
 
 - [ ] Codex / Cursor discovery when layouts stabilize
-- [ ] Optional clipboard write for resume command (platform-native)
 - [ ] Export selected sessions metadata
 - [ ] Theme presets
 

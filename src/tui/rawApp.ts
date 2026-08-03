@@ -16,6 +16,7 @@ import type { AgentSource, SessionHealth, SessionRecord } from "../types.js";
 import { attachKeys, type AppKey } from "../lib/keys.js";
 import { formatAge } from "../lib/time.js";
 import { resumeHint, resumeInfo, shortId } from "../lib/format.js";
+import { copyToClipboard } from "../lib/clipboard.js";
 import { deleteSessions } from "../lib/delete-session.js";
 import { renameSession } from "../lib/rename-session.js";
 import {
@@ -92,7 +93,7 @@ const HELP_GROUPS: ReadonlyArray<{ title: string; keys: [string, string][] }> =
         ["i", "Rename title (inline; Esc/Enter save to CSV)"],
         ["dd", "Mark delete (skipped if starred; apply on :wq)"],
         ["u", "Undo last delete mark"],
-        ["y / yy / r", "Copy resume command (show in footer)"],
+        ["y / yy / r", "Copy resume command to clipboard"],
       ],
     },
     {
@@ -2330,11 +2331,15 @@ export async function runRawTui(
     }
   }
 
-  /** y = copy resume command — show in footer for selection (does not run it) */
+  /** y = copy resume command to system clipboard (macOS: pbcopy). */
   function doYank(): void {
     const s = list[cursor];
     if (!s) return;
-    statusLine = `copy resume command: ${resumeHint(s)}`;
+    const command = resumeHint(s);
+    const copied = copyToClipboard(command);
+    statusLine = copied.ok
+      ? `copied resume command via ${copied.tool}`
+      : `clipboard unavailable; resume command: ${command}`;
     paintFooter();
   }
 

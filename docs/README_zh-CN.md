@@ -50,9 +50,6 @@ session id —— 还有 Agent 当时加载的是哪个仓库、它已经定位�
 
 ![保留期浮层](./images/tui-retention.png)
 
-> 截图由 `./scripts/screenshot.sh` 在本机 `npm start` 后真实采集（tmux → ANSI → PNG）。
-> 运行在生成的演示数据上，因此可复现，且不含任何真实会话内容。
-
 ---
 
 ## 为什么需要？
@@ -73,7 +70,7 @@ session id —— 还有 Agent 当时加载的是哪个仓库、它已经定位�
 
 - **多 Agent 发现** — Grok Build、Qoder、Claude Code（Codex / Cursor 预留）
 - **健康一览** — `OK` · `Empty` · `Missing`（路径没了也会保留字符串）
-- **续跑就绪** — 底栏 / `y` 显示完整命令（Qoder 会带 `cd …`）
+- **续跑就绪** — `y` 把完整命令复制到剪贴板（macOS 通过系统自带 `pbcopy` 开箱即用；Qoder 会带 `cd …`）
 - **对话预览** — Enter 打开**只读** transcript，最新在上；Esc 回中间列表
 - **Vim 风格 TUI** — ↑↓ · gg/G · `/` 搜索 · Space 片选 · `dd` + `:wq` 删除
 - **本地整理** — 重命名（`i`）、星标（`*`）、标签（`t`）— **绝不改写**各 Agent 原生存储
@@ -171,7 +168,7 @@ oh-my-sessions --help
 | `i` | 重命名标题（写入本地 CSV） |
 | `/` | 搜索标题 / id / 路径 |
 | `s` / `h` / `c` | 循环来源 · 健康 · 清除筛选 |
-| `y` `yy` `r` | 底栏显示 **resume 命令**（自行复制；从不执行） |
+| `y` `yy` `r` | 复制 **resume 命令** 到剪贴板；从不执行 |
 | `dd` | 标记删除（片选或当前行；星标会话跳过） |
 | `u` | 撤销最近一次删除标记 |
 | `:empty` `:missing` `:bad` | 按健康状态批量片选 |
@@ -224,26 +221,6 @@ oh-my-sessions --help
 - **聊天**读 jsonl / updates；只显示 user + assistant（不含 tool / thought）。
 
 架构图：[`d/codemap.md`](../d/codemap.md)。
-
----
-
-## 截图复现
-
-```bash
-# 依赖: tmux, Python3, Pillow, 以及一款严格双宽的 CJK 等宽字体
-# （系统装有 Noto Sans Mono CJK 时会自动使用）
-./scripts/screenshot.sh main         # → docs/images/tui-main.png
-./scripts/screenshot.sh chat         # → docs/images/tui-chat.png
-./scripts/screenshot.sh retention    # → docs/images/tui-retention.png
-```
-
-截图跑在 `scripts/demo-fixture.mjs` 生成的临时数据上，不会读写你真实的会话、标题和星标。
-
-| 变量 | 作用 |
-|------|------|
-| `OMS_SHOT_FONT_SIZE` | 渲染字号，默认 `32`（越大越清晰，PNG 也越大） |
-| `OMS_SHOT_COLS` / `OMS_SHOT_ROWS` | 终端字符宽高，默认 `150` × `21` |
-| `OMS_SHOT_REAL=1` | 改用你自己的真实会话截图 |
 
 ---
 

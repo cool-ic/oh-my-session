@@ -88,7 +88,7 @@ gutter 列画 │；表头行接缝用 ┬
 ▌oh-my-sessions  ·  [ move ] ↑↓  ·  [ row ] Space select · i rename · dd delete  ·  …     [1/N] [sel] [del] ↻8s
 ```
 
-- **`y` = copy resume command**；**`/` = search filter**  
+- **`y` = copy resume command to clipboard**；**`/` = search filter**  
 - 右侧计数 pill + **`↻8s`** = 自动刷新间隔  
 - 窄终端自动降级  
 
@@ -103,7 +103,7 @@ gutter 列画 │；表头行接缝用 ┬
 | 区块 | 文案 |
 |------|------|
 | **ID** | 完整 session id |
-| **Resume command (y copy)** | `resumeInfo().command`（可折行；`y` = copy resume command） |
+| **Resume command (y copy)** | `resumeInfo().command`（可折行；`y` = copy resume command to clipboard） |
 
 **禁止**详情里写 Note / 路径语义说教（如 “must cd here first”）——命令本身已含 `cd`（Qoder）或仅需 ID（Grok/Claude）。  
 也不展示 Store / Created / Branch 等噪声字段。
@@ -153,7 +153,7 @@ gutter 列画 │；表头行接缝用 ┬
 | **`i`** | **Rename**：TITLE 内联编辑；**Esc** / **Enter** 写 CSV |
 | `dd` | **标记删除**（片选批量 / 当前行）；**跳过已星标**并提示 |
 | `u` | 撤销最近一次删除标记（恢复列表；多次 `dd` 可逐条 undo） |
-| `y` / `yy` / `r` | **copy resume command**（底栏显示；不执行） |
+| `y` / `yy` / `r` | **copy resume command** 到系统剪贴板；macOS 用 `pbcopy`；失败时底栏显示命令；不执行 |
 | `/` | **vim 搜索**：底栏 `/pattern`；实时过滤；**Enter** 确认；**Esc** 取消并恢复；**BS 在空 pattern 上退出**（`/` 本身不可“删除”，它是提示符不是缓冲字符） |
 | `s` | 来源筛选 |
 | `Tab` | 焦点：detail → sessions → tags → sessions |
