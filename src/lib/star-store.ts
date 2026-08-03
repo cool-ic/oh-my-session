@@ -9,19 +9,14 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import type { SessionRecord } from "../types.js";
+import { dataDir } from "./paths.js";
 import { sortKeyLastActive } from "./time.js";
 
 const HEADER = "source,id,starred_at\n";
 
-function repoRoot(): string {
-  const here = path.dirname(fileURLToPath(import.meta.url));
-  return path.resolve(here, "../..");
-}
-
 export function starStorePath(): string {
-  return path.join(repoRoot(), "data", "session-stars.csv");
+  return path.join(dataDir(), "session-stars.csv");
 }
 
 export function sessionKeyOf(source: string, id: string): string {

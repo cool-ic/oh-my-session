@@ -45,6 +45,7 @@
 | `CLAUDE_CONFIG_DIR` | Claude 根，默认 `~/.claude` |
 | `CODEX_HOME` | Codex 根，默认 `~/.codex` |
 | `AGENT_SESSION_SOURCES` | 逗号分隔 source 过滤，如 `grok,qoder` |
+| `OMS_DATA_DIR` | 本地 CSV（标题/星标/标签）目录，默认 `<repo>/data`；截图 fixture 用它避免污染用户数据 |
 
 ---
 

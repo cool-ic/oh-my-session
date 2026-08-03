@@ -1,10 +1,23 @@
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 export function expandHome(p: string, home = os.homedir()): string {
   if (p === "~") return home;
   if (p.startsWith("~/")) return path.join(home, p.slice(2));
   return p;
+}
+
+/**
+ * Where the local CSV stores (titles / stars / tags) live.
+ * Defaults to `<repo>/data`; `OMS_DATA_DIR` redirects it so demo fixtures and
+ * tests cannot clobber the user's own overrides.
+ */
+export function dataDir(): string {
+  const override = process.env.OMS_DATA_DIR;
+  if (override && override.trim()) return expandHome(override.trim());
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  return path.join(path.resolve(here, "../.."), "data");
 }
 
 export function grokHome(home = os.homedir()): string {

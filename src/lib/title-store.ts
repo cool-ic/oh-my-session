@@ -9,8 +9,8 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import type { SessionRecord } from "../types.js";
+import { dataDir } from "./paths.js";
 
 const HEADER = "source,id,title,updated_at\n";
 
@@ -21,15 +21,9 @@ export interface TitleRow {
   updatedAt: string;
 }
 
-function repoRoot(): string {
-  // src/lib → project root
-  const here = path.dirname(fileURLToPath(import.meta.url));
-  return path.resolve(here, "../..");
-}
-
 /** Absolute path to the titles CSV. */
 export function titleStorePath(): string {
-  return path.join(repoRoot(), "data", "session-titles.csv");
+  return path.join(dataDir(), "session-titles.csv");
 }
 
 export function titleKey(source: string, id: string): string {

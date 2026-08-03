@@ -46,7 +46,12 @@ session id —— 还有 Agent 当时加载的是哪个仓库、它已经定位�
 
 ![聊天视图](./images/tui-chat.png)
 
+`:retention` —— 各 Agent 正准备删掉什么，以及能阻止它的配置：
+
+![保留期浮层](./images/tui-retention.png)
+
 > 截图由 `./scripts/screenshot.sh` 在本机 `npm start` 后真实采集（tmux → ANSI → PNG）。
+> 运行在生成的演示数据上，因此可复现，且不含任何真实会话内容。
 
 ---
 
@@ -225,10 +230,20 @@ oh-my-sessions --help
 ## 截图复现
 
 ```bash
-# 依赖: tmux, Python3, Pillow, 以及 scripts/fonts 中的 CJK 字体
-./scripts/screenshot.sh main    # → docs/images/tui-main.png
-./scripts/screenshot.sh chat    # → docs/images/tui-chat.png
+# 依赖: tmux, Python3, Pillow, 以及一款严格双宽的 CJK 等宽字体
+# （系统装有 Noto Sans Mono CJK 时会自动使用）
+./scripts/screenshot.sh main         # → docs/images/tui-main.png
+./scripts/screenshot.sh chat         # → docs/images/tui-chat.png
+./scripts/screenshot.sh retention    # → docs/images/tui-retention.png
 ```
+
+截图跑在 `scripts/demo-fixture.mjs` 生成的临时数据上，不会读写你真实的会话、标题和星标。
+
+| 变量 | 作用 |
+|------|------|
+| `OMS_SHOT_FONT_SIZE` | 渲染字号，默认 `32`（越大越清晰，PNG 也越大） |
+| `OMS_SHOT_COLS` / `OMS_SHOT_ROWS` | 终端字符宽高，默认 `150` × `21` |
+| `OMS_SHOT_REAL=1` | 改用你自己的真实会话截图 |
 
 ---
 
@@ -240,6 +255,7 @@ oh-my-sessions --help
 | `GROK_HOME` | Grok 数据根目录 |
 | `QODER_CONFIG_DIR` | Qoder 配置目录覆盖（默认 `~/.qoder`） |
 | `CLAUDE_CONFIG_DIR` | Claude 配置目录覆盖 |
+| `OMS_DATA_DIR` | 标题 / 星标 / 标签 CSV 的存放目录（默认 `<repo>/data`） |
 
 ---
 

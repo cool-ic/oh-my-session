@@ -44,7 +44,13 @@ Chat view after **Enter** (near→far; **Esc** back to sessions):
 
 ![Chat TUI](./docs/images/tui-chat.png)
 
+`:retention` — what each agent is about to delete, and the config that stops it:
+
+![Retention overlay](./docs/images/tui-retention.png)
+
 > Captured live with `./scripts/screenshot.sh` (`npm start` inside tmux → ANSI → PNG).
+> It runs against a generated demo fixture, so the shots are reproducible and
+> contain no real session data.
 
 ---
 
@@ -223,10 +229,21 @@ Architecture map: [`d/codemap.md`](./d/codemap.md).
 ## Screenshots (reproduce)
 
 ```bash
-# needs: tmux, Python3 + Pillow, CJK font under scripts/fonts/
-./scripts/screenshot.sh main    # → docs/images/tui-main.png
-./scripts/screenshot.sh chat    # → docs/images/tui-chat.png
+# needs: tmux, Python3 + Pillow, and a dual-width CJK mono font
+# (Noto Sans Mono CJK is used automatically if installed)
+./scripts/screenshot.sh main         # → docs/images/tui-main.png
+./scripts/screenshot.sh chat         # → docs/images/tui-chat.png
+./scripts/screenshot.sh retention    # → docs/images/tui-retention.png
 ```
+
+Shots run against a throwaway fixture built by `scripts/demo-fixture.mjs`, so
+they never read or write your real sessions, titles or stars.
+
+| Env | Effect |
+|-----|--------|
+| `OMS_SHOT_FONT_SIZE` | Render size, default `32` (higher = sharper, larger PNG) |
+| `OMS_SHOT_COLS` / `OMS_SHOT_ROWS` | Terminal geometry in cells, default `150` × `21` |
+| `OMS_SHOT_REAL=1` | Shoot your own sessions instead of the fixture |
 
 ---
 
@@ -261,6 +278,7 @@ oh-my-sessions/
 | `GROK_HOME` | Grok data root (if set by the Grok tooling) |
 | `QODER_CONFIG_DIR` | Qoder config root override (defaults to `~/.qoder`) |
 | `CLAUDE_CONFIG_DIR` | Claude config root override |
+| `OMS_DATA_DIR` | Where the local title / star / tag CSVs live (default `<repo>/data`) |
 
 ---
 

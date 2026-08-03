@@ -4,8 +4,14 @@ Render tmux ANSI (truecolor FG+BG) to PNG on a **strict terminal cell grid**.
 
 Column math mirrors `src/lib/width.ts` (display columns).
 Glyphs are left-aligned on cell origins with a shared baseline.
-Prefer **Sarasa Mono SC** (true dual-width CJK mono) when installed under
-`scripts/fonts/`; otherwise JetBrains Mono + WenQuanYi Micro Hei Mono.
+
+Font preference, all of which are exactly dual-width (中 == 2×M):
+  1. Sarasa Mono SC under `scripts/fonts/` (best looking; not committed)
+  2. Noto Sans Mono CJK SC (ships with most distros — keeps shots reproducible)
+  3. JetBrains Mono + WenQuanYi Micro Hei Mono scaled to a 2× cell
+
+Set OMS_SHOT_FONT_SIZE to change resolution; 32 gives a crisp ~2.2k-wide PNG
+that still looks sharp on a HiDPI display after GitHub scales it down.
 """
 from __future__ import annotations
 
@@ -22,16 +28,18 @@ OSC = re.compile(r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)")
 # Match theme.canvas / theme.text (cool dark + soft body)
 DEFAULT_BG = (11, 13, 18)
 DEFAULT_FG = (210, 214, 222)
-PAD = 12
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _FONTS = _SCRIPT_DIR / "fonts"
 
-# Prefer a real dual-width CJK monospace (not committed — too large).
-# SemiBold/Bold read fuller; size ~20 avoids the "too narrow" look of 16px.
 import os as _os
 
-SARASA_SIZE = int(_os.environ.get("OMS_SHOT_FONT_SIZE", "20"))
+SARASA_SIZE = int(_os.environ.get("OMS_SHOT_FONT_SIZE", "32"))
+# Frame padding and the brand rule scale with the font so the layout keeps its
+# proportions at any resolution.
+PAD = max(6, round(SARASA_SIZE * 0.6))
+RULE_H = max(2, round(SARASA_SIZE * 0.17))
+
 SARASA_CANDIDATES = [
     # Fuller strokes first
     _FONTS / "SarasaMonoSC-SemiBold.ttf",
@@ -40,6 +48,13 @@ SARASA_CANDIDATES = [
     Path.home() / ".local/share/fonts/SarasaMonoSC-SemiBold.ttf",
     Path.home() / ".local/share/fonts/SarasaMonoSC-Regular.ttf",
     Path.home() / ".local/share/fonts/oh-my-sessions/SarasaMonoSC-Regular.ttf",
+]
+
+# (path, ttc_index) — "Noto Sans Mono CJK SC" is index 7 in the Regular TTC.
+NOTO_MONO_CJK = [
+    (Path("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"), 7),
+    (Path("/usr/share/fonts/opentype/noto/NotoSansMonoCJKsc-Regular.otf"), 0),
+    (Path("/usr/share/fonts/truetype/noto/NotoSansMonoCJKsc-Regular.otf"), 0),
 ]
 
 MONO_FALLBACK = [
@@ -193,11 +208,33 @@ def load_fonts():
             f"sarasa@{p.name}:{SARASA_SIZE}",
         )
 
+    # --- Noto Sans Mono CJK SC: dual-width and usually already installed ---
+    for p, idx in NOTO_MONO_CJK:
+        if not p.is_file():
+            continue
+        try:
+            f = _truetype(p, SARASA_SIZE, index=idx)
+        except Exception:
+            continue
+        m = f.getlength("M")
+        z = f.getlength("中")
+        if abs(z - 2 * m) > 0.6:
+            continue
+        ascent, descent = f.getmetrics()
+        return (
+            f,
+            f,
+            max(1, int(round(m))),
+            ascent + descent + 4,
+            ascent + 2,
+            f"noto-mono-cjk@{p.name}:{idx}:{SARASA_SIZE}",
+        )
+
     # --- Dual: Latin mono + WQY Mono sized for 2× cell ---
     mono = None
     for p in MONO_FALLBACK:
         if p.is_file():
-            mono = _truetype(p, 15)
+            mono = _truetype(p, SARASA_SIZE)
             break
     if mono is None:
         raise SystemExit("no monospace font found")
@@ -267,7 +304,7 @@ def main() -> None:
                 if ch not in (" ", "\t", "\u00a0"):
                     # Pick font: fullwidth → CJK face; else Latin mono
                     code = ord(ch)
-                    use_cjk = is_fullwidth_codepoint(code) or mode == "sarasa"
+                    use_cjk = is_fullwidth_codepoint(code) or mode != "dual"
                     font = font_cjk if use_cjk else font_latin
 
                     # Render into a cell-sized RGBA tile then paste — hard clip
@@ -288,7 +325,7 @@ def main() -> None:
         y += CELL_H
 
     draw = ImageDraw.Draw(img)
-    draw.rectangle([0, 0, W, 3], fill=(42, 219, 92))
+    draw.rectangle([0, 0, W, RULE_H], fill=(42, 219, 92))
     img.save(dst, "PNG")
     print(
         f"wrote {dst} ({W}x{H}) mode={mode} CELL={CELL_W}x{CELL_H} "

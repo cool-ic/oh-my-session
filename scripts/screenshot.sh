@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
 # Capture oh-my-sessions TUI into PNG via tmux + ansi_to_png.py
-# OMS_SHOT_FONT_SIZE=20  # wider; default 20 in ansi_to_png.py
+#
+# By default this runs against a generated demo fixture (scripts/demo-fixture.mjs)
+# so the README screenshots are reproducible and contain no private session data.
+# Set OMS_SHOT_REAL=1 to shoot your own sessions instead.
+#
+# Env:
+#   OMS_SHOT_FONT_SIZE=32   render size (higher = sharper, bigger PNG)
+#   OMS_SHOT_COLS=150       terminal width in cells
+#   OMS_SHOT_ROWS=28        terminal height in cells
+#   OMS_SHOT_REAL=1         use the real agent homes instead of the fixture
 #
 # Usage:
 #   ./scripts/screenshot.sh                 # main list → docs/images/tui-main.png
@@ -12,30 +21,49 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 MODE="${1:-main}"
 OUT="${2:-}"
 SESSION="oms-shot-$$"
-COLS="${OMS_SHOT_COLS:-140}"
-ROWS="${OMS_SHOT_ROWS:-36}"
+COLS="${OMS_SHOT_COLS:-150}"
+ROWS="${OMS_SHOT_ROWS:-21}"
 WAIT="${OMS_SHOT_WAIT:-2.5}"
 
 mkdir -p "$ROOT/docs/images"
 case "$MODE" in
   main) OUT="${OUT:-$ROOT/docs/images/tui-main.png}" ;;
   chat) OUT="${OUT:-$ROOT/docs/images/tui-chat.png}" ;;
+  retention) OUT="${OUT:-$ROOT/docs/images/tui-retention.png}" ;;
   *)
-    echo "usage: $0 [main|chat] [out.png]" >&2
+    echo "usage: $0 [main|chat|retention] [out.png]" >&2
     exit 2
     ;;
 esac
 
 ANSI="$(mktemp /tmp/oms-ansi.XXXXXX.txt)"
+FIXTURE=""
 cleanup() {
   tmux kill-session -t "$SESSION" 2>/dev/null || true
   rm -f "$ANSI"
+  [[ -n "$FIXTURE" ]] && rm -rf "$FIXTURE"
+  return 0
 }
 trap cleanup EXIT
 
+# Demo fixture: fake agent homes + fake project dirs + its own CSV store, so we
+# never read or write the user's real sessions, titles or stars.
+#
+# The root is fixed and short rather than a mktemp path, because these absolute
+# paths are visible on screen — in the RESUME DIR column and in the :retention
+# overlay's "File:" lines. It is laid out like a home directory
+# (<root>/.qoder, <root>/code/<repo>) and removed again on exit.
+ENVPREFIX=""
+if [[ "${OMS_SHOT_REAL:-0}" != "1" ]]; then
+  FIXTURE="${OMS_SHOT_ROOT:-/tmp/demo}"
+  REPOS="$FIXTURE/code"
+  node "$ROOT/scripts/demo-fixture.mjs" "$FIXTURE" "$REPOS" >/dev/null
+  ENVPREFIX="OMS_DATA_DIR='$FIXTURE/data' GROK_HOME='$FIXTURE/.grok' QODER_CONFIG_DIR='$FIXTURE/.qoder' CLAUDE_CONFIG_DIR='$FIXTURE/.claude'"
+fi
+
 tmux kill-session -t "$SESSION" 2>/dev/null || true
 tmux new-session -d -s "$SESSION" -x "$COLS" -y "$ROWS"
-tmux send-keys -t "$SESSION" "cd '$ROOT' && npm start" Enter
+tmux send-keys -t "$SESSION" "cd '$ROOT' && $ENVPREFIX npm start" Enter
 sleep "$WAIT"
 
 # wait until brand paints
@@ -47,10 +75,16 @@ for _ in $(seq 1 15); do
   sleep 0.4
 done
 
-if [[ "$MODE" == "chat" ]]; then
-  tmux send-keys -t "$SESSION" Enter
-  sleep 1.2
-fi
+case "$MODE" in
+  chat)
+    tmux send-keys -t "$SESSION" Enter
+    sleep 1.2
+    ;;
+  retention)
+    tmux send-keys -t "$SESSION" ':retention' Enter
+    sleep 1.2
+    ;;
+esac
 
 tmux capture-pane -t "$SESSION" -pe -S -400 >"$ANSI"
 python3 "$ROOT/scripts/ansi_to_png.py" "$ANSI" "$OUT"

@@ -5,19 +5,14 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import type { SessionRecord } from "../types.js";
+import { dataDir } from "./paths.js";
 
 const HEADER = "source,id,tag,updated_at\n";
 export const TAG_NAME_RE = /^[a-z0-9][a-z0-9_-]{0,31}$/;
 
-function repoRoot(): string {
-  const here = path.dirname(fileURLToPath(import.meta.url));
-  return path.resolve(here, "../..");
-}
-
 export function tagStorePath(): string {
-  return path.join(repoRoot(), "data", "session-tags.csv");
+  return path.join(dataDir(), "session-tags.csv");
 }
 
 function escapeField(s: string): string {
