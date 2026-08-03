@@ -36,8 +36,8 @@ function loadSessions(opts: {
 function printHelp(): void {
   console.log(`oh-my-sessions
 
-  npm start              Interactive TUI (main entry)
-  npx oh-my-sessions     After npm link / global install (alias: oms)
+  npm install -g oh-my-sessions
+  oms                    Interactive TUI (alias: oh-my-sessions)
 
 Notes:
   RESUME DIR = project path when the session was started (kept even if deleted)
@@ -46,7 +46,7 @@ Notes:
   Claude     = UUID works from any cwd → claude --resume <id>  (-c is cwd-scoped)
   OK/Empty/Missing = has messages / 0 msgs / resume path gone on disk
 
-Keys: ↑↓ Space · * star · i rename · dd · :empty/:bad · / search · y copy · :q/:wq
+Keys: ↑↓ Space · * star · i rename · dd · :empty/:bad · / search · yy copy · :q/:wq
       :retention  check & disable agent session auto-deletion (asks first)
 `);
 }

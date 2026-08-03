@@ -91,33 +91,32 @@ session id —— 还有 Agent 当时加载的是哪个仓库、它已经定位�
 ### 安装并运行
 
 ```bash
+npm install -g oh-my-sessions
+oms
+```
+
+也可以不全局安装，直接试用：
+
+```bash
+npx oh-my-sessions
+```
+
+### 从源码运行
+
+```bash
 git clone https://github.com/cool-ic/oh-my-sessions.git
 cd oh-my-sessions
 npm install
 npm start
 ```
 
-### 全局命令（可选）
-
-```bash
-npm run build
-npm link          # 或: npm install -g .
-
-oh-my-sessions    # 全名
-oms               # 短别名
-```
-
 ### 非交互模式
 
 ```bash
-npm run list                 # 纯文本表
-npm run list:json            # JSON 数组
-
-# link / build 之后:
-oh-my-sessions --list
-oh-my-sessions --json
-oh-my-sessions --source grok,claude
-oh-my-sessions --help
+oms --list                 # 纯文本表
+oms --json                 # JSON 数组
+oms --source grok,claude
+oms --help
 ```
 
 ---

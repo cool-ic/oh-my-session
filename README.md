@@ -89,33 +89,32 @@ You use more than one coding agent. Each dumps sessions into a different home di
 ### Install & run
 
 ```bash
+npm install -g oh-my-sessions
+oms
+```
+
+Or run without installing globally:
+
+```bash
+npx oh-my-sessions
+```
+
+### From source
+
+```bash
 git clone https://github.com/cool-ic/oh-my-sessions.git
 cd oh-my-sessions
 npm install
 npm start
 ```
 
-### Global CLI (optional)
-
-```bash
-npm run build
-npm link          # or: npm install -g .
-
-oh-my-sessions    # full name
-oms               # short alias
-```
-
 ### Non-interactive
 
 ```bash
-npm run list                 # plain table on stdout
-npm run list:json            # JSON array
-
-# After link / build:
-oh-my-sessions --list
-oh-my-sessions --json
-oh-my-sessions --source grok,claude
-oh-my-sessions --help
+oms --list                 # plain table on stdout
+oms --json                 # JSON array
+oms --source grok,claude
+oms --help
 ```
 
 ---
