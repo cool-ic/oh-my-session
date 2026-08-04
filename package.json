@@ -1,6 +1,6 @@
 {
   "name": "oh-my-session",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "A local file manager for unfinished AI coding sessions across Qoder, Claude Code, and Grok.",
   "type": "module",
   "main": "./dist/index.js",
