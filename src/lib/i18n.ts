@@ -421,9 +421,9 @@ export function helpGroups(): ReadonlyArray<{
       title: t("help.g.row"),
       keys: [
         ["Enter", "Open chat in right pane (near→far, newest first)"],
-        ["Space", "Toggle select on current row"],
-        ["v", "Visual select (↑↓ extend range; v again to end)"],
-        ["*", "Pin / unpin top; blocks dd"],
+        ["Space", "Toggle select on current row (mark #)"],
+        ["v", "Visual select (↑↓ extend; v again to end; mark #)"],
+        ["*", "Pin / unpin (* column); blocks dd"],
         ["i", "Rename title (inline; Esc/Enter save to CSV)"],
         ["dd", "Mark delete (skipped if pinned; apply on :wq)"],
         ["u", "Undo last delete mark"],
