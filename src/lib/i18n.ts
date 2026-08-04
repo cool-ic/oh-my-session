@@ -112,6 +112,8 @@ const en: Dict = {
   "status.selectionCleared": "selection cleared",
   "status.nothingUndo": "nothing to undo",
   "status.noDeletes": "no deletes; quitting…",
+  "status.updateAvailable":
+    "update {current} → {latest}  ·  {cmd}  ·  oms upgrade",
 
   // help
   "help.title": "Keyboard shortcuts",
@@ -246,6 +248,8 @@ const zh: Dict = {
   "status.selectionCleared": "已清空片选",
   "status.nothingUndo": "无可撤销",
   "status.noDeletes": "无删除；退出中…",
+  "status.updateAvailable":
+    "有新版本 {current} → {latest}  ·  {cmd}  ·  oms upgrade",
 
   "help.title": "快捷键",
   "help.esc": "Esc / q / Enter  关闭",

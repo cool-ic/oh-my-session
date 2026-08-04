@@ -62,6 +62,10 @@ import {
 } from "../lib/locale-store.js";
 import { helpGroups, setLocale, t } from "../lib/i18n.js";
 import { GITHUB_REPO_URL, openUrl } from "../lib/open-url.js";
+import {
+  scheduleUpdateCheck,
+  type UpdateInfo,
+} from "../lib/update-check.js";
 import { theme } from "./theme.js";
 
 /** Session list auto-refresh interval */
@@ -436,6 +440,9 @@ export async function runRawTui(
   let cursor = 0;
   let offset = 0;
   let statusLine = "";
+  /** npm update result waiting for a free main UI (not lang/retention overlays). */
+  let pendingUpdate: UpdateInfo | null = null;
+  let updateNoticeShown = false;
   /** Focus: session table | left tag rail | right detail (chat scroll) */
   let focusPane: "sessions" | "tags" | "detail" = "sessions";
   /** null = all */
@@ -2152,8 +2159,39 @@ export async function runRawTui(
     paintAllList();
     paintDetail();
     paintRule(layout.rowRuleFoot, "foot");
+    // After first-run lang / retention overlays close, surface pending update.
+    maybeShowUpdateNotice(false);
     paintFooter();
     write(move(layout.rowFooter, 1));
+  }
+
+  /** Show footer notice once npm reports a newer version (when UI is free). */
+  function maybeShowUpdateNotice(repaint = true): void {
+    if (updateNoticeShown || !pendingUpdate?.updateAvailable) return;
+    if (
+      renameMode ||
+      cmdMode ||
+      filterMode ||
+      helpMode ||
+      langMode ||
+      retentionMode ||
+      tagAssignMode
+    ) {
+      return;
+    }
+    updateNoticeShown = true;
+    statusLine = t("status.updateAvailable", {
+      current: pendingUpdate.current,
+      latest: pendingUpdate.latest,
+      cmd: pendingUpdate.upgradeCmd,
+    });
+    if (repaint) {
+      try {
+        paintFooter();
+      } catch {
+        /* TUI may already be tearing down */
+      }
+    }
   }
 
   function paintSelectionChange(prevCursor: number, prevOffset: number): void {
@@ -2943,6 +2981,15 @@ export async function runRawTui(
         refreshFromDisk();
       }, REFRESH_MS)
     : null;
+
+  // Non-blocking npm version check → footer status when outdated.
+  // May arrive while language/retention popup is open; kept in pendingUpdate
+  // until fullPaint / maybeShowUpdateNotice runs with a free main UI.
+  scheduleUpdateCheck((info) => {
+    if (!info.updateAvailable) return;
+    pendingUpdate = info;
+    maybeShowUpdateNotice(true);
+  });
 
   await new Promise<void>((resolve) => {
     let detachKeys: (() => void) | null = null;

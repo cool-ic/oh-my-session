@@ -60,6 +60,8 @@ Agent 还会**偷偷删旧会话**（Claude 默认约 30 天）。用 `:retentio
 - **Vim 风格 TUI** — ↑↓ · gg/G · `/` 搜索 · Space 选中 · `v` 可视选择 · `dd` + `:wq` 删除
 - **中英双语** — 首次启动选择语言；之后可用 `:lang` 切换
 - **`:feedback`** — 浏览器打开本仓库 GitHub（反馈 / Issue）
+- **版本与升级** — `oms version` / `-V`；可选 npm 新版本提示（缓存 24h；`OMS_NO_UPDATE=1` 关闭）
+- **Shell 补全** — `oms completion bash|zsh|fish`
 - **本地整理** — 重命名（`i`）、置顶（`*`）、分配标签（`t`）— **绝不改写**各 Agent 原生存储
 - **保留期检查** — 发现 Agent 正在自动删除旧会话时给出提示；`:retention` 确认后一键改配（并留 `.bak`）
 - **默认隐私** — 标题 / 星标 / 标签写在 gitignore 的 `data/*.csv`
@@ -104,6 +106,32 @@ oms --list                 # 纯文本表
 oms --json                 # JSON 数组
 oms --source grok,claude
 oms --help
+oms -V                     # 版本（走本地缓存）
+oms version                # 版本 + 查 npm 是否有更新
+oms upgrade                # 打印升级说明
+```
+
+### Shell 补全
+
+```bash
+# bash
+eval "$(oms completion bash)"   # 或写入 ~/.bashrc
+
+# zsh（示例：写入 fpath 目录）
+oms completion zsh > ~/.zfunc/_oms
+
+# fish
+oms completion fish > ~/.config/fish/completions/oms.fish
+```
+
+### 版本更新
+
+启动 / `--list` 时若缓存发现有新版本，会在 TUI 状态栏或 stderr 提醒。
+缓存文件：`data/update-check.json`（24 小时）。
+
+```bash
+npm install -g oh-my-session@latest   # 与 oms upgrade 给出的命令相同
+OMS_NO_UPDATE=1 oms                    # 关闭检查与提示
 ```
 
 ---
@@ -180,6 +208,7 @@ oms --help
 | 星标（`*`） | `data/session-stars.csv` | 置顶 + 保护不被 `dd` |
 | 标签（`t`） | `data/session-tags.csv` | 一会话一个标签 |
 | 界面语言 | `data/ui-locale` | `en` 或 `zh`（首次启动询问） |
+| 更新检查 | `data/update-check.json` | 缓存的 npm 最新版（24h；非个人数据） |
 
 这些路径在 **.gitignore** 中。可自行私密备份，不会随仓库公开。
 

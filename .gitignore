@@ -16,6 +16,7 @@ data/session-stars.csv
 data/session-tags.csv
 data/retention-prefs.csv
 data/ui-locale
+data/update-check.json
 data/.session-*.tmp
 data/.retention-prefs.*.tmp
 

@@ -60,6 +60,8 @@ You use more than one coding agent. Each dumps sessions into a different home di
 - **Vim-ish TUI** — ↑↓ · gg/G · `/` search · Space multi-select · `dd` + `:wq` delete
 - **English / 简体中文** — first launch picks a language; change anytime with `:lang`
 - **`:feedback`** — opens the GitHub repo in your browser
+- **Version & upgrades** — `oms version` / `-V`; optional npm update notice (cached 24h; `OMS_NO_UPDATE=1` to disable)
+- **Shell completion** — `oms completion bash|zsh|fish`
 - **Organize locally** — rename (`i`), star (`*`), tag (`t`) — **never rewrites agent stores**
 - **Retention check** — warns when an agent is set to auto-delete old sessions; `:retention` applies the config for you (asks first, keeps a `.bak`)
 - **Private by default** — titles / stars / tags live in gitignored CSV under `data/`
@@ -104,6 +106,32 @@ oms --list                 # plain table on stdout
 oms --json                 # JSON array
 oms --source grok,claude
 oms --help
+oms -V                     # version (uses update cache)
+oms version                # version + check npm for updates
+oms upgrade                # print upgrade instructions
+```
+
+### Shell completion
+
+```bash
+# bash
+eval "$(oms completion bash)"   # or append to ~/.bashrc
+
+# zsh (example: write into a fpath directory)
+oms completion zsh > ~/.zfunc/_oms
+
+# fish
+oms completion fish > ~/.config/fish/completions/oms.fish
+```
+
+### Updates
+
+On launch / `--list`, a **cached** npm check may remind you when a newer release exists
+(footer in the TUI, stderr for tables). Cache lives under `data/update-check.json` (24h).
+
+```bash
+npm install -g oh-my-session@latest   # same as: oms upgrade
+OMS_NO_UPDATE=1 oms                    # skip network / notices
 ```
 
 ---
@@ -180,6 +208,7 @@ Preferences are **local only** — they never patch Grok / Qoder / Claude stores
 | Star (`*`) | `data/session-stars.csv` | Pin + protect from `dd` |
 | Tag (`t`) | `data/session-tags.csv` | One tag per session |
 | Language | `data/ui-locale` | `en` or `zh` (first-run prompt) |
+| Update check | `data/update-check.json` | Cached npm latest (24h); not personal data |
 
 These paths are **gitignored**. Safe to back up privately; not published with the repo.
 
@@ -202,7 +231,7 @@ Runtime-only (not persisted): search filters, multi-select, scroll, open chat.
         └─► --list / --json
 ```
 
-- **No network** for discovery — everything is local filesystem.
+- **No network** for discovery — everything is local filesystem (optional npm update check is separate; disable with `OMS_NO_UPDATE=1`).
 - **Delete** only happens on `:wq` after explicit `dd` marks.
 - **Agent settings** are only written by `:retention`, after you confirm — it keeps
   every other key, and copies the old file to `settings.json.bak`.
