@@ -55,6 +55,13 @@ import {
   padStartWidth,
   truncateWidth,
 } from "../lib/width.js";
+import {
+  loadLocale,
+  saveLocale,
+  type Locale,
+} from "../lib/locale-store.js";
+import { helpGroups, setLocale, t } from "../lib/i18n.js";
+import { GITHUB_REPO_URL, openUrl } from "../lib/open-url.js";
 import { theme } from "./theme.js";
 
 /** Session list auto-refresh interval */
@@ -64,92 +71,6 @@ export interface RawTuiOptions {
   /** Re-discover + enrich sessions (used every REFRESH_MS) */
   reload?: () => SessionRecord[];
 }
-
-/** Grouped key help for :help overlay */
-const HELP_GROUPS: ReadonlyArray<{ title: string; keys: [string, string][] }> =
-  [
-    {
-      title: "Move",
-      keys: [
-        ["↑ / ↓", "Move cursor in focused pane"],
-        ["gg / G", "Top / bottom of session list"],
-        ["Tab", "Focus tags rail ↔ session list"],
-      ],
-    },
-    {
-      title: "Tags (left rail)",
-      keys: [
-        ["Tab", "Enter / leave tags rail"],
-        ["↑↓ (in tags)", "Select tag · filter sessions (all = everything)"],
-        ["Enter (in tags)", "Keep filter · return to sessions"],
-        ["t", "Assign tag for current session"],
-        ["  · ↑↓", "Pick existing tag or (clear)"],
-        ["  · type in +new", "Create tag and assign (a-z 0-9 _ -)"],
-        ["  · Enter / Esc", "Confirm / cancel assign"],
-      ],
-    },
-    {
-      title: "Session row",
-      keys: [
-        ["Enter", "Open chat in right pane (near→far, newest first)"],
-        ["Space", "Toggle multi-select (* mark)"],
-        ["*", "Star / unstar — pin top; blocks dd"],
-        ["i", "Rename title (inline; Esc/Enter save to CSV)"],
-        ["dd", "Mark delete (skipped if starred; apply on :wq)"],
-        ["u", "Undo last delete mark"],
-        ["yy", "Copy resume command to clipboard"],
-      ],
-    },
-    {
-      title: "Chat (right pane)",
-      keys: [
-        ["Enter (session)", "Open message list (preview, near→far)"],
-        ["↑ / ↓", "Move in message list · scroll when expanded"],
-        ["Enter (list row)", "Expand full text of that message"],
-        ["Esc", "Collapse full → list · or list → sessions"],
-      ],
-    },
-    {
-      title: "Search",
-      keys: [
-        ["/", "Search title / id / path (vim-style)"],
-        ["  · Enter", "Apply search"],
-        ["  · Esc", "Abort · restore previous"],
-        ["  · BS empty", "Exit search"],
-      ],
-    },
-    {
-      title: "Bulk select (:)",
-      keys: [
-        [":empty / :emp", "Select all empty sessions"],
-        [":missing / :mis", "Select all missing-path sessions"],
-        [":bad", "Select empty + missing"],
-        [":sel e|m|bad|none", "Same via :sel family"],
-      ],
-    },
-    {
-      title: "Quit (:)",
-      keys: [
-        [":q", "Quit if no pending deletes"],
-        [":q!", "Quit · discard pending deletes"],
-        [":wq / :x", "Apply deletes and quit"],
-        [
-          ":retention",
-          "Retention popup: fix config / ignore risk / unignore",
-        ],
-        [":help / :h / :?", "This help"],
-      ],
-    },
-    {
-      title: "Notes",
-      keys: [
-        ["Titles", "data/session-titles.csv (local)"],
-        ["Stars", "data/session-stars.csv — pin + no dd"],
-        ["Tags", "data/session-tags.csv — one tag per session"],
-        ["Refresh", "Background re-scan every 8s (not shown in chrome)"],
-      ],
-    },
-  ];
 
 /**
  * List table geometry (display columns).
@@ -302,9 +223,14 @@ function padAnsi(s: string, width: number, padBg: string = theme.canvas): string
   return clipped + fgOn(padBg, theme.text, " ".repeat(pad));
 }
 
+function healthLabel(h: SessionHealth): string {
+  if (h === "ok") return t("health.ok");
+  if (h === "empty") return t("health.empty");
+  return t("health.missing");
+}
+
 function statusChip(h: SessionHealth, rowBg?: string): string {
-  const label = h === "ok" ? "OK" : h === "empty" ? "Empty" : "Missing";
-  const plain = padEndWidth(label, LC.status);
+  const plain = padEndWidth(healthLabel(h), LC.status);
   // Pills keep their own fill; rowBg unused (kept for call-site symmetry).
   void rowBg;
   if (h === "ok") return fgBg(theme.pill.okFg, theme.pill.okBg, plain);
@@ -523,6 +449,12 @@ export async function runRawTui(
   let helpMode = false;
   let helpOffset = 0;
   /**
+   * Language popup (first run blocking, or :lang).
+   * First run must pick before retention / main UI.
+   */
+  let langMode = false;
+  let langBlocking = false;
+  /**
    * Retention TUI popup:
    *  - decision: at-risk agents not yet ignored → y fix / i ignore (startup blocks)
    *  - done: after fix — show results
@@ -547,10 +479,23 @@ export async function runRawTui(
     retentionAcked = ackedRetentionRisks(retentionFindings, prefs);
   }
 
-  syncRetentionState();
-  if (retentionPending.length > 0) {
-    retentionMode = "decision";
-    retentionBlocking = true;
+  /** After language is known: open retention if needed. */
+  function maybeOpenStartupRetention(): void {
+    syncRetentionState();
+    if (retentionPending.length > 0) {
+      retentionMode = "decision";
+      retentionBlocking = true;
+    }
+  }
+
+  const savedLocale = loadLocale();
+  if (savedLocale) {
+    setLocale(savedLocale);
+    maybeOpenStartupRetention();
+  } else {
+    // Bilingual chrome until user picks; blocking first-run.
+    langMode = true;
+    langBlocking = true;
   }
   /**
    * Detail panel: meta | chat list (1-line previews) | expanded full message.
@@ -569,6 +514,11 @@ export async function runRawTui(
   const undoStack: SessionRecord[] = [];
   /** Space multi-select (source:id keys). dd acts on all when non-empty. */
   const multiSelect = new Set<string>();
+  /**
+   * Vim-like visual select: list index where `v` started.
+   * While set, cursor motion rewrites multiSelect to [anchor, cursor].
+   */
+  let visualAnchor: number | null = null;
   /** vim multi-key: d / g / y */
   let pending: null | "d" | "g" | "y" = null;
   let pendingTimer: ReturnType<typeof setTimeout> | null = null;
@@ -729,10 +679,7 @@ export async function runRawTui(
     // star: * filled / · empty — avoid ★/☆ (missing glyph → tofu in many mono faces)
     const starPlain = padEndWidth(starred ? "*" : "·", LC.star);
     const gapStar = " ".repeat(LC.gs);
-    const statusPlain = padEndWidth(
-      h === "ok" ? "OK" : h === "empty" ? "Empty" : "Missing",
-      LC.status,
-    );
+    const statusPlain = padEndWidth(healthLabel(h), LC.status);
     const srcPlain = sourcePlain(s.source);
     const agePlain = padStartWidth(formatAge(s.lastActive, now), LC.age);
     const msgsPlain = padStartWidth(String(s.messageCount), LC.msgs);
@@ -816,23 +763,23 @@ export async function runRawTui(
   function buildColHeader(): string {
     const h = theme.headerBg;
     const c = theme.headerFg;
-    const on = (t: string) => fgOn(h, c, t);
-    // Quiet lowercase labels; AGE/MSGS right-aligned with their number columns
+    const on = (s: string) => fgOn(h, c, s);
+    // Quiet labels; age/msgs right-aligned with their number columns
     return padAnsi(
       on("  ") +
         on(padEndWidth("·", LC.star)) +
         on(" ".repeat(LC.gs)) +
-        on(padEndWidth("status", LC.status)) +
+        on(padEndWidth(t("col.status"), LC.status)) +
         on(" ".repeat(LC.g1)) +
-        on(padEndWidth("source", LC.source)) +
+        on(padEndWidth(t("col.source"), LC.source)) +
         on(" ".repeat(LC.g2)) +
-        on(padStartWidth("age", LC.age)) +
+        on(padStartWidth(t("col.age"), LC.age)) +
         on(" ".repeat(LC.g3)) +
-        on(padStartWidth("msgs", LC.msgs)) +
+        on(padStartWidth(t("col.msgs"), LC.msgs)) +
         on(" ".repeat(LC.g4)) +
-        on(padEndWidth("title", layout.titleW)) +
+        on(padEndWidth(t("col.title"), layout.titleW)) +
         on(" ".repeat(LC.g5)) +
-        on(padEndWidth("resume dir", layout.pathW)),
+        on(padEndWidth(t("col.resume"), layout.pathW)),
       layout.listW,
       h,
     );
@@ -889,7 +836,7 @@ export async function runRawTui(
     const focused = focusPane === "tags" || tagAssignMode;
 
     // header cell on col head row — match list header surface
-    const headLabel = tagAssignMode ? " assign " : " tags ";
+    const headLabel = tagAssignMode ? t("col.assign") : t("col.tags");
     paintCell(
       L.rowColHead,
       1,
@@ -906,9 +853,12 @@ export async function runRawTui(
       const tags = listTags();
       // items: 0=new, 1..tags, last=clear
       const items: Array<{ kind: "new" | "tag" | "clear"; label: string }> = [
-        { kind: "new", label: tagAssignBuf ? `+${tagAssignBuf}` : "+ new…" },
-        ...tags.map((t) => ({ kind: "tag" as const, label: t })),
-        { kind: "clear", label: "(clear)" },
+        {
+          kind: "new",
+          label: tagAssignBuf ? `+${tagAssignBuf}` : t("tag.new"),
+        },
+        ...tags.map((name) => ({ kind: "tag" as const, label: name })),
+        { kind: "clear", label: t("tag.clear") },
       ];
       const n = items.length;
       if (tagAssignCursor >= n) tagAssignCursor = Math.max(0, n - 1);
@@ -964,7 +914,8 @@ export async function runRawTui(
         (isAll && tagFilter == null) || (!isAll && tagFilter === label);
       const sel = focusPane === "tags" && abs === tagCursor;
       const mark = active ? "●" : " ";
-      const text = padEndWidth(` ${mark} ${label}`, tw);
+      const shown = isAll ? t("tag.all") : label;
+      const text = padEndWidth(` ${mark} ${shown}`, tw);
       let cell: string;
       if (sel) cell = fgBg(theme.selectFg, theme.selectBg, text);
       else if (active)
@@ -1016,74 +967,90 @@ export async function runRawTui(
       // full — room to breathe
       [
         name,
-        tag(" move ") + key("↑↓"),
-        tag(" row ") +
+        tag(t("brand.move")) + key("↑↓"),
+        tag(t("brand.row")) +
           key("Tab") +
-          hint(" tags") +
+          hint(t("hint.tags")) +
           mid +
           key("t") +
-          hint(" set-tag") +
+          hint(t("hint.setTag")) +
           mid +
           key("Space") +
-          hint(" select") +
+          hint(t("hint.select")) +
+          mid +
+          key("v") +
+          hint(t("hint.visual")) +
           mid +
           key("*") +
-          hint(" star") +
+          hint(t("hint.star")) +
           mid +
           key("i") +
-          hint(" rename") +
+          hint(t("hint.rename")) +
           mid +
           key("dd") +
-          hint(" delete"),
-        tag(" bulk ") +
+          hint(t("hint.delete")),
+        tag(t("brand.bulk")) +
           key(":empty") +
           mid +
           key(":missing") +
           mid +
           key(":bad"),
-        tag(" copy ") +
+        tag(t("brand.copy")) +
           key("yy") +
-          hint(" resume command") +
+          hint(t("hint.resumeCmd")) +
           soft +
-          tag(" search ") +
+          tag(t("brand.search")) +
           key("/") +
-          hint(" filter"),
-        tag(" quit ") + key(":q") + mid + key(":wq"),
+          hint(t("hint.filter")),
+        tag(t("brand.quit")) + key(":q") + mid + key(":wq"),
       ].join(soft),
       // medium
       [
         name,
-        tag(" move ") + key("↑↓"),
-        tag(" row ") +
+        tag(t("brand.move")) + key("↑↓"),
+        tag(t("brand.row")) +
           key("Space") +
+          mid +
+          key("v") +
           mid +
           key("*") +
           mid +
           key("i") +
           mid +
           key("dd"),
-        tag(" bulk ") +
+        tag(t("brand.bulk")) +
           key(":empty") +
           mid +
           key(":missing") +
           mid +
           key(":bad"),
-        tag(" copy ") + key("yy") + soft + tag(" search ") + key("/"),
-        tag(" quit ") + key(":q") + mid + key(":wq"),
+        tag(t("brand.copy")) +
+          key("yy") +
+          soft +
+          tag(t("brand.search")) +
+          key("/"),
+        tag(t("brand.quit")) + key(":q") + mid + key(":wq"),
       ].join(soft),
       // compact
       [
         name,
-        tag("mv") + key("↑↓"),
-        tag("row") +
+        tag(t("brand.mv")) + key("↑↓"),
+        tag(t("brand.row.short")) +
           key("Sp") +
+          mid +
+          key("v") +
           mid +
           key("*") +
           mid +
           key("i") +
           mid +
           key("dd"),
-        tag("bulk") + key(":e") + mid + key(":m") + mid + key(":bad"),
+        tag(t("brand.bulk.short")) +
+          key(":e") +
+          mid +
+          key(":m") +
+          mid +
+          key(":bad"),
         tag("yy") + key("yy") + mid + tag("/") + key("/"),
         tag("q") + key(":q") + mid + key(":wq"),
       ].join(soft),
@@ -1091,7 +1058,15 @@ export async function runRawTui(
       [
         name,
         key("↑↓"),
-        key("Space") + mid + key("*") + mid + key("i") + mid + key("dd"),
+        key("Space") +
+          mid +
+          key("v") +
+          mid +
+          key("*") +
+          mid +
+          key("i") +
+          mid +
+          key("dd"),
         key(":e") + mid + key(":m") + mid + key(":bad"),
         key("yy") + mid + key("/"),
         key(":q") + mid + key(":wq"),
@@ -1214,13 +1189,13 @@ export async function runRawTui(
     const c = theme.chat;
     switch (role) {
       case "user":
-        return { name: "You", nameFg: c.userName, bar: c.userBar };
+        return { name: t("chat.you"), nameFg: c.userName, bar: c.userBar };
       case "tool":
         return { name: "Tool", nameFg: c.toolName, bar: c.toolBar };
       case "thought":
         return { name: "Think", nameFg: c.thinkName, bar: c.thinkBar };
       default:
-        return { name: "Agent", nameFg: c.agentName, bar: c.agentBar };
+        return { name: t("chat.agent"), nameFg: c.agentName, bar: c.agentBar };
     }
   }
 
@@ -1242,7 +1217,7 @@ export async function runRawTui(
 
     if (chatTurns.length === 0) {
       lines.push(
-        fgBg(c.headerFg, c.headerBg, padEndWidth("  No messages", w)),
+        fgBg(c.headerFg, c.headerBg, padEndWidth(t("chat.empty"), w)),
       );
       chatLines = lines;
       return;
@@ -1298,8 +1273,8 @@ export async function runRawTui(
 
     // ── list: one preview line per turn ──
     {
-      const left = " Messages";
-      const right = `${chatTurns.length} · Enter full`;
+      const left = ` ${t("chat.messages")}`;
+      const right = `${chatTurns.length} · ${t("chat.enterFull")}`;
       const gap = Math.max(1, w - 1 - displayWidth(left) - displayWidth(right));
       lines.push(
         fgBg(c.headerAccent, c.headerBg, " ") +
@@ -1311,7 +1286,7 @@ export async function runRawTui(
     }
     lines.push(fg(c.sep, "─".repeat(w)));
 
-    const roleCol = 6; // "Agent" / "You  "
+    const roleCol = 6; // "Agent"/"You" or CJK roles
     for (let i = 0; i < chatTurns.length; i++) {
       const turn = chatTurns[i]!;
       const meta = chatRoleMeta(turn.role);
@@ -1510,18 +1485,18 @@ export async function runRawTui(
       lines.push(fg(theme.accent, padEndWidth(label, innerW)));
     };
 
-    pushLabel("ID");
+    pushLabel(t("detail.id"));
     push(s.id, theme.text);
     lines.push("");
 
     const tg = sessionTag(s);
     if (tg) {
-      pushLabel("Tag");
+      pushLabel(t("detail.tag"));
       push(tg, theme.accent);
       lines.push("");
     }
 
-    pushLabel("Resume command  (y copy)");
+    pushLabel(t("detail.resume"));
     let rest = resumeInfo(s).command;
     let guard = 0;
     while (rest && guard++ < 6) {
@@ -1542,13 +1517,13 @@ export async function runRawTui(
       rest = rest.slice(chunk.length);
     }
     lines.push("");
-    push("Enter · message list (preview)", theme.dim);
+    push(t("detail.enterChat"), theme.dim);
 
     return lines;
   }
 
   function detailHeaderLabel(): string {
-    return detailView === "chat" ? " Chat" : " Detail";
+    return detailView === "chat" ? t("col.chat") : t("col.detail");
   }
 
   function paintDetail(): void {
@@ -1580,7 +1555,15 @@ export async function runRawTui(
       const top = L.rowDetail0;
       paintFullRow(
         top,
-        fg(theme.border, boxTop(detailView === "chat" ? "Chat" : "Detail", dw)),
+        fg(
+          theme.border,
+          boxTop(
+            detailView === "chat"
+              ? t("col.chat").trim()
+              : t("col.detail").trim(),
+            dw,
+          ),
+        ),
       );
       for (let i = 0; i < L.detailBodyRows; i++) {
         paintFullRow(
@@ -1599,21 +1582,23 @@ export async function runRawTui(
 
   function buildHelpLines(): string[] {
     const lines: string[] = [];
-    lines.push("Keyboard shortcuts");
+    const title = t("help.title");
+    lines.push(title);
     lines.push("");
-    for (const g of HELP_GROUPS) {
+    for (const g of helpGroups()) {
       lines.push(g.title);
       for (const [k, desc] of g.keys) {
         lines.push(`  ${k.padEnd(18)} ${desc}`);
       }
       lines.push("");
     }
-    lines.push("Esc / q / Enter  ·  close help");
+    lines.push(t("help.esc"));
     return lines;
   }
 
   function paintHelpOverlay(): void {
     const lines = buildHelpLines();
+    const title = t("help.title");
     const top = layout.rowColHead;
     const bot = layout.rowRuleFoot;
     const height = Math.max(1, bot - top);
@@ -1627,13 +1612,55 @@ export async function runRawTui(
       const isHead =
         raw.length > 0 &&
         !raw.startsWith("  ") &&
-        raw !== "Keyboard shortcuts" &&
+        raw !== title &&
         !raw.startsWith("Esc");
-      const isTitle = raw === "Keyboard shortcuts";
+      const isTitle = raw === title;
       let cell: string;
       if (isTitle) cell = fg(theme.accent, padEndWidth(raw, layout.cols));
-      else if (isHead) cell = fgBg(theme.brandNameFg, theme.brandNameBg, padEndWidth(` ${raw} `, layout.cols));
+      else if (isHead)
+        cell = fgBg(
+          theme.brandNameFg,
+          theme.brandNameBg,
+          padEndWidth(` ${raw} `, layout.cols),
+        );
       else cell = fg(theme.text, padEndWidth(raw, layout.cols));
+      paintFullRow(row, cell);
+    }
+  }
+
+  function buildLangLines(): string[] {
+    return [
+      t("lang.title"),
+      "",
+      t("lang.intro"),
+      "",
+      `  1   ${t("lang.en")}`,
+      `  2   ${t("lang.zh")}`,
+      "",
+      t("lang.hint"),
+    ];
+  }
+
+  function paintLangOverlay(): void {
+    const lines = buildLangLines();
+    const top = layout.rowColHead;
+    const bot = layout.rowRuleFoot;
+    const height = Math.max(1, bot - top);
+    for (let i = 0; i < height; i++) {
+      const row = top + i;
+      const raw = lines[i] ?? "";
+      let cell: string;
+      if (i === 0) {
+        cell = fgBg(
+          theme.brandNameFg,
+          theme.brandNameBg,
+          padEndWidth(` ${raw} `, layout.cols),
+        );
+      } else if (raw.startsWith("  1") || raw.startsWith("  2")) {
+        cell = fg(theme.accent, padEndWidth(raw, layout.cols));
+      } else {
+        cell = fg(theme.text, padEndWidth(raw, layout.cols));
+      }
       paintFullRow(row, cell);
     }
   }
@@ -1701,34 +1728,30 @@ export async function runRawTui(
     }
 
     // decision
-    lines.push("⚠  Session auto-deletion risk");
+    lines.push(t("ret.title.decision"));
     lines.push("");
-    lines.push(
-      "These agents can delete local session history on their own schedule.",
-    );
+    lines.push(t("ret.intro"));
     lines.push("");
     for (const f of retentionPending) {
       lines.push(`${f.agent}`);
       lines.push(`  ${f.notice}`);
-      lines.push(`  Suggested config:  ${f.fixHint}`);
-      lines.push(`  File:  ${f.settingsPath}`);
+      lines.push(`  ${t("ret.suggested")}  ${f.fixHint}`);
+      lines.push(`  ${t("ret.file")}  ${f.settingsPath}`);
       lines.push("");
     }
-    lines.push("Choose for the agents listed above:");
+    lines.push(t("ret.choose"));
     lines.push("");
-    lines.push("  y   Fix config now");
-    lines.push("      Write the suggested keys (other keys kept; .bak first).");
+    lines.push(t("ret.y"));
+    lines.push(t("ret.y.hint"));
     lines.push("");
-    lines.push("  i   I understand — leave their settings alone");
-    lines.push("      Never ask again for these agents (user preference).");
-    lines.push("      You can change your mind anytime with :retention");
+    lines.push(t("ret.i"));
+    lines.push(t("ret.i.hint1"));
+    lines.push(t("ret.i.hint2"));
     lines.push("");
     if (retentionBlocking) {
-      lines.push(
-        "Please choose y or i  ·  Esc disabled  ·  cannot quit until you decide",
-      );
+      lines.push(t("ret.block"));
     } else {
-      lines.push("y fix  ·  i ignore  ·  Esc cancel");
+      lines.push(t("ret.noblock"));
     }
     return lines;
   }
@@ -1754,6 +1777,7 @@ export async function runRawTui(
         raw.startsWith("  y ") ||
         raw.startsWith("  i ") ||
         raw.startsWith("y ") ||
+        raw.startsWith(t("ret.choose")) ||
         raw.startsWith("Choose")
       ) {
         cell = fg(theme.accent, padEndWidth(raw, layout.cols));
@@ -1778,21 +1802,33 @@ export async function runRawTui(
   }
 
   function paintFooter(): void {
+    if (langMode) {
+      paintFullRow(
+        layout.rowFooter,
+        fg(theme.dim, " ") +
+          fgBg(theme.editFg, theme.editBg, t("lang.badge")) +
+          fg(
+            theme.dim,
+            langBlocking ? t("lang.footer") : t("lang.footer.change"),
+          ),
+      );
+      return;
+    }
     if (retentionMode) {
       let hint: string;
       if (retentionMode === "decision") {
         hint = retentionBlocking
-          ? "  y fix config  ·  i acknowledge (no more popup)"
-          : "  y fix  ·  i ignore  ·  Esc cancel";
+          ? t("footer.retention.block")
+          : t("footer.retention.decide");
       } else if (retentionMode === "done") {
-        hint = "  Enter / Esc  ·  continue";
+        hint = t("footer.retention.done");
       } else {
-        hint = "  y fix open  ·  i ignore open  ·  u unignore  ·  Esc close";
+        hint = t("footer.retention.review");
       }
       paintFullRow(
         layout.rowFooter,
         fg(theme.dim, " ") +
-          fgBg(theme.editFg, theme.editBg, " RETENTION ") +
+          fgBg(theme.editFg, theme.editBg, t("ret.badge")) +
           fg(theme.dim, hint),
       );
       return;
@@ -1801,8 +1837,8 @@ export async function runRawTui(
       paintFullRow(
         layout.rowFooter,
         fg(theme.dim, " ") +
-          fgBg(theme.brandNameFg, theme.brandNameBg, " HELP ") +
-          fg(theme.dim, " ↑↓ scroll  ·  Esc / q / Enter close"),
+          fgBg(theme.brandNameFg, theme.brandNameBg, t("help.badge")) +
+          fg(theme.dim, t("footer.help")),
       );
       return;
     }
@@ -1810,11 +1846,8 @@ export async function runRawTui(
       paintFullRow(
         layout.rowFooter,
         fg(theme.dim, " ") +
-          fgBg(theme.editFg, theme.editBg, " TAG ") +
-          fg(
-            theme.dim,
-            " ↑↓ pick  ·  type in +new  ·  Enter assign  ·  Esc cancel",
-          ),
+          fgBg(theme.editFg, theme.editBg, t("tag.badge")) +
+          fg(theme.dim, t("footer.tag")),
       );
       return;
     }
@@ -1822,8 +1855,8 @@ export async function runRawTui(
       paintFullRow(
         layout.rowFooter,
         fg(theme.dim, " ") +
-          fgBg(theme.editFg, theme.editBg, " TITLE ") +
-          fg(theme.dim, " Esc leave (keep)  ·  Enter save  ·  Ctrl-U clear"),
+          fgBg(theme.editFg, theme.editBg, t("title.badge")) +
+          fg(theme.dim, t("footer.title")),
       );
       return;
     }
@@ -1834,10 +1867,7 @@ export async function runRawTui(
         fg(theme.warn, " /") +
           fg(theme.title, filter) +
           fg(theme.accent, "█") +
-          fg(
-            theme.dim,
-            "  Enter apply · Esc abort · BS empty→exit · Ctrl-U clear",
-          ),
+          fg(theme.dim, t("footer.search")),
       );
       return;
     }
@@ -1864,10 +1894,12 @@ export async function runRawTui(
     if (filter) msg += (msg ? " · " : "") + `filter "${filter}"`;
     if (statusLine) msg += (msg ? " · " : "") + statusLine;
     if (pending) msg += (msg ? " · " : "") + pending + "…";
-    if (multiSelect.size)
+    if (visualAnchor !== null)
+      msg += (msg ? " · " : "") + t("status.visualOn");
+    else if (multiSelect.size)
       msg +=
         (msg ? " · " : "") +
-        `${multiSelect.size} selected · Space toggle · dd mark all`;
+        t("status.multiHint", { n: multiSelect.size });
     if (pendingDelete.size)
       msg += (msg ? " · " : "") + `${pendingDelete.size} to delete → :wq`;
     if (msg) {
@@ -1916,7 +1948,7 @@ export async function runRawTui(
           theme.dim,
           " ℹ " +
             truncateWidth(
-              `${names}: auto-delete risk acknowledged  ·  change mind: :retention`,
+              t("ret.acked", { names }),
               layout.cols - 4,
             ),
         ),
@@ -1925,10 +1957,7 @@ export async function runRawTui(
     }
     paintFullRow(
       layout.rowFooter,
-      fg(
-        theme.dim,
-        " Enter chat  ·  Tab focus  ·  t tag  ·  * star  ·  i rename  ·  :wq",
-      ),
+      fg(theme.dim, t("footer.default")),
     );
   }
 
@@ -2041,6 +2070,14 @@ export async function runRawTui(
     paintBrand();
     paintRule(layout.rowRuleBrand, "brand");
 
+    if (langMode) {
+      paintLangOverlay();
+      paintRule(layout.rowRuleFoot, "foot");
+      paintFooter();
+      write(move(layout.rowFooter, 1));
+      return;
+    }
+
     if (helpMode) {
       paintHelpOverlay();
       paintRule(layout.rowRuleFoot, "foot");
@@ -2146,6 +2183,7 @@ export async function runRawTui(
    * Starred sessions cannot be marked — unstar (*) first.
    */
   function doDeleteMark(): void {
+    visualAnchor = null;
     const candidates: SessionRecord[] = [];
     if (multiSelect.size > 0) {
       for (const s of allSessions) {
@@ -2285,6 +2323,8 @@ export async function runRawTui(
 
   /** Space: toggle multi-select on the cursor row */
   function doToggleMultiSelect(): void {
+    // Leave visual range mode; Space only toggles the current line
+    visualAnchor = null;
     const s = list[cursor];
     if (!s) return;
     const k = sessionKey(s);
@@ -2300,6 +2340,57 @@ export async function runRawTui(
     paintBrand();
     paintFooter();
     write(move(layout.rowFooter, 1));
+  }
+
+  /** Fill multiSelect with list rows between visualAnchor and cursor (inclusive). */
+  function applyVisualRange(): void {
+    if (visualAnchor === null || list.length === 0) return;
+    const a = Math.max(0, Math.min(visualAnchor, cursor, list.length - 1));
+    const b = Math.max(0, Math.min(Math.max(visualAnchor, cursor), list.length - 1));
+    multiSelect.clear();
+    for (let i = a; i <= b; i++) {
+      const s = list[i];
+      if (s) multiSelect.add(sessionKey(s));
+    }
+  }
+
+  /** vim `v` — start / end visual range select on the session list. */
+  function doToggleVisual(): void {
+    if (focusPane !== "sessions") return;
+    if (visualAnchor !== null) {
+      visualAnchor = null;
+      statusLine = t("status.visualOff", { n: multiSelect.size });
+      fullPaint();
+      return;
+    }
+    if (list.length === 0) {
+      statusLine = t("status.nothingSelected");
+      paintFooter();
+      return;
+    }
+    visualAnchor = cursor;
+    applyVisualRange();
+    // Footer shows visual hint via visualAnchor; avoid duplicating in statusLine
+    statusLine = "";
+    fullPaint();
+  }
+
+  /** After cursor motion: keep visual range in sync (may need full list repaint). */
+  function afterListCursorMove(prevCursor: number, prevOffset: number): void {
+    if (visualAnchor !== null) {
+      // Anchor may be stale if list was rebuilt; clamp
+      if (visualAnchor >= list.length) visualAnchor = Math.max(0, list.length - 1);
+      applyVisualRange();
+      dropChatIfCursorMoved();
+      // Range can span many rows — repaint list
+      paintAllList();
+      paintBrand();
+      paintDetail();
+      paintFooter();
+      write(move(layout.rowFooter, 1));
+      return;
+    }
+    paintSelectionChange(prevCursor, prevOffset);
   }
 
   /**
@@ -2346,9 +2437,10 @@ export async function runRawTui(
   }
 
   function clearMultiSelect(): void {
+    visualAnchor = null;
     if (multiSelect.size === 0) return;
     multiSelect.clear();
-    statusLine = "selection cleared";
+    statusLine = t("status.selectionCleared");
     fullPaint();
   }
 
@@ -2426,8 +2518,50 @@ export async function runRawTui(
       "?": "help",
       retention: "retention",
       ret: "retention",
+      lang: "lang",
+      language: "lang",
+      locale: "lang",
+      feedback: "feedback",
+      fb: "feedback",
+      github: "feedback",
+      issue: "feedback",
+      issues: "feedback",
     };
     return map[head] ?? null;
+  }
+
+  function applyLocaleChoice(locale: Locale): void {
+    const r = saveLocale(locale);
+    setLocale(locale);
+    langMode = false;
+    const wasBlocking = langBlocking;
+    langBlocking = false;
+    statusLine =
+      locale === "zh" ? t("lang.saved.zh") : t("lang.saved.en");
+    if (!r.ok) {
+      statusLine = `language set (save failed: ${r.error ?? "unknown"})`;
+    }
+    // First-run: continue to retention if needed
+    if (wasBlocking) {
+      maybeOpenStartupRetention();
+    }
+    fullPaint();
+  }
+
+  function openLangPicker(blocking = false): void {
+    helpMode = false;
+    langMode = true;
+    langBlocking = blocking;
+    statusLine = t("status.langOpened");
+    fullPaint();
+  }
+
+  function openFeedback(): void {
+    const r = openUrl(GITHUB_REPO_URL);
+    statusLine = r.ok
+      ? t("status.feedbackOk", { url: GITHUB_REPO_URL })
+      : t("status.feedbackFail", { url: GITHUB_REPO_URL });
+    paintFooter();
   }
 
   function openRetention(): void {
@@ -2492,7 +2626,7 @@ export async function runRawTui(
     syncRetentionState();
     retentionMode = null;
     retentionBlocking = false;
-    statusLine = `risk acknowledged for ${agents.join(", ")}  ·  change mind anytime: :retention`;
+    statusLine = t("ret.acked", { names: agents.join(", ") });
     fullPaint();
   }
 
@@ -2536,12 +2670,13 @@ export async function runRawTui(
   function runExCommand(cmdRaw: string, exit: () => void): void {
     const raw = cmdRaw.trim().toLowerCase();
     if (!raw) {
-      statusLine = "empty command · :help";
+      statusLine = t("status.emptyCmd");
       paintFooter();
       return;
     }
     const parts = raw.split(/\s+/).filter(Boolean);
     const verb = normalizeEx(parts[0] ?? "", parts.slice(1).join(" "));
+    const arg = parts.slice(1).join(" ");
 
     switch (verb) {
       case "wq":
@@ -2551,17 +2686,17 @@ export async function runRawTui(
         pendingDelete.clear();
         undoStack.length = 0;
         multiSelect.clear();
-        statusLine = "quit (discarded pending deletes)";
+        statusLine = t("status.quitDiscard");
         paintFooter();
         exit();
         return;
       case "q":
         if (pendingDelete.size > 0) {
-          statusLine = `${pendingDelete.size} pending delete(s) · :wq apply · :q! discard`;
+          statusLine = t("status.pendingDel", { n: pendingDelete.size });
           paintFooter();
           return;
         }
-        statusLine = "quitting…";
+        statusLine = t("status.quitting");
         paintFooter();
         exit();
         return;
@@ -2576,14 +2711,14 @@ export async function runRawTui(
         return;
       case "selc":
         if (multiSelect.size === 0) {
-          statusLine = "nothing selected";
+          statusLine = t("status.nothingSelected");
           paintFooter();
           return;
         }
         clearMultiSelect();
         return;
       case "sel-help":
-        statusLine = ":sel empty|missing|bad|none";
+        statusLine = t("status.selHelp");
         paintFooter();
         return;
       case "help":
@@ -2595,8 +2730,24 @@ export async function runRawTui(
       case "retention":
         openRetention();
         return;
+      case "lang": {
+        // :lang en | :lang zh | bare :lang opens picker
+        if (arg === "en" || arg === "english") {
+          applyLocaleChoice("en");
+          return;
+        }
+        if (arg === "zh" || arg === "cn" || arg === "chinese" || arg === "中文") {
+          applyLocaleChoice("zh");
+          return;
+        }
+        openLangPicker(false);
+        return;
+      }
+      case "feedback":
+        openFeedback();
+        return;
       default:
-        statusLine = `unknown :${cmdRaw.trim()}  ·  :help`;
+        statusLine = t("status.unknownCmd", { cmd: cmdRaw.trim() });
         paintFooter();
     }
   }
@@ -2608,8 +2759,8 @@ export async function runRawTui(
     const command = resumeHint(s);
     const copied = copyToClipboard(command);
     statusLine = copied.ok
-      ? `copied resume command via ${copied.tool}`
-      : `clipboard unavailable; resume command: ${command}`;
+      ? t("status.copied", { tool: copied.tool ?? "?" })
+      : t("status.clipboardFail", { cmd: command });
     paintFooter();
   }
 
@@ -2709,7 +2860,14 @@ export async function runRawTui(
    */
   function refreshFromDisk(): void {
     if (!options.reload) return;
-    if (renameMode || cmdMode || filterMode || tagAssignMode || helpMode)
+    if (
+      renameMode ||
+      cmdMode ||
+      filterMode ||
+      tagAssignMode ||
+      helpMode ||
+      langMode
+    )
       return;
     if (retentionMode) return;
     // Avoid clobbering chat scroll mid-read
@@ -2772,6 +2930,44 @@ export async function runRawTui(
 
     const onKey = (_str: string | undefined, key: AppKey): void => {
       const str = _str ?? "";
+
+      // ----- language picker (first run or :lang) -----
+      if (langMode) {
+        if (
+          str === "1" ||
+          key.name === "1" ||
+          str === "e" ||
+          str === "E" ||
+          key.name === "e"
+        ) {
+          applyLocaleChoice("en");
+          return;
+        }
+        if (
+          str === "2" ||
+          key.name === "2" ||
+          str === "c" ||
+          str === "C" ||
+          str === "z" ||
+          str === "Z" ||
+          key.name === "c" ||
+          key.name === "z"
+        ) {
+          applyLocaleChoice("zh");
+          return;
+        }
+        if (
+          !langBlocking &&
+          (key.name === "escape" || key.name === "q" || str === "q")
+        ) {
+          langMode = false;
+          statusLine = t("lang.cancelled");
+          fullPaint();
+          return;
+        }
+        // Blocking first-run: swallow other keys
+        return;
+      }
 
       // ----- retention TUI popup -----
       if (retentionMode) {
@@ -3046,7 +3242,7 @@ export async function runRawTui(
           const prevO = offset;
           cursor = 0;
           clampScroll();
-          paintSelectionChange(prevC, prevO);
+          afterListCursorMove(prevC, prevO);
           return;
         }
       }
@@ -3071,6 +3267,13 @@ export async function runRawTui(
         if (detailView === "chat" && collapseChatExpand()) return;
         if (detailView === "chat" || focusPane === "detail") {
           closeChat();
+          return;
+        }
+        // Visual: first Esc ends range mode (keeps selection); second clears
+        if (visualAnchor !== null) {
+          visualAnchor = null;
+          statusLine = t("status.visualOff", { n: multiSelect.size });
+          fullPaint();
           return;
         }
         if (multiSelect.size > 0) {
@@ -3126,7 +3329,14 @@ export async function runRawTui(
         doToggleMultiSelect();
         return;
       }
-      // * — star / unstar
+      // v — vim visual range select
+      if (str === "v" || str === "V") {
+        if (focusPane !== "sessions") return;
+        clearPending();
+        doToggleVisual();
+        return;
+      }
+      // * — pin / unpin
       if (str === "*") {
         if (focusPane !== "sessions") return;
         clearPending();
@@ -3171,7 +3381,7 @@ export async function runRawTui(
         const prevO = offset;
         cursor = Math.max(0, list.length - 1);
         clampScroll();
-        paintSelectionChange(prevC, prevO);
+        afterListCursorMove(prevC, prevO);
         return;
       }
 
@@ -3235,16 +3445,16 @@ export async function runRawTui(
 
       const prevCursor = cursor;
       const prevOffset = offset;
-      if (key.name === "up") {
+      if (key.name === "up" || key.name === "k") {
         cursor = Math.max(0, cursor - 1);
         clampScroll();
-        paintSelectionChange(prevCursor, prevOffset);
+        afterListCursorMove(prevCursor, prevOffset);
         return;
       }
-      if (key.name === "down") {
+      if (key.name === "down" || key.name === "j") {
         cursor = Math.min(list.length - 1, cursor + 1);
         clampScroll();
-        paintSelectionChange(prevCursor, prevOffset);
+        afterListCursorMove(prevCursor, prevOffset);
         return;
       }
     };

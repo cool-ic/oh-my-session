@@ -1,11 +1,12 @@
 # oh-my-session
 
-**A local file manager for the AI coding sessions you haven't finished.**
+**Stop digging through `~/.claude` / `~/.grok` for half-finished agent chats.**
 
-[![npm](https://img.shields.io/badge/npm-oh--my--session-cb3837)](https://www.npmjs.com/package/oh-my-session)
+One table for Grok · Qoder · Claude sessions: resume health, project path, `yy` to copy the command, Enter to re-read the chat.
+
+[![npm](https://img.shields.io/npm/v/oh-my-session.svg)](https://www.npmjs.com/package/oh-my-session)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg)](https://nodejs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6.svg)](https://www.typescriptlang.org/)
 
 **English** · [中文速览](./docs/README_zh-CN.md)
 
@@ -14,23 +15,7 @@ npm install -g oh-my-session
 oms
 ```
 
-Every Qoder, Claude Code, or Grok session is a workbench: a repo path, a trail of
-decisions, a half-built mental model, and sometimes a fix that was almost done.
-
-A week later that workbench is an opaque UUID in a folder you don't remember.
-You didn't just forget the session id — you forgot which repo the agent had
-loaded, which bug it had already diagnosed, which constraints you'd already
-explained, and which half-finished fix was waiting to continue.
-
-`oh-my-session` doesn't remember that work for you. It makes sure the record of
-it is still there, and that you can find it again in one place: search across
-every agent, rename and tag and star what matters, preview the transcript, and
-copy the exact resume command when you're ready to continue.
-
-> **Your agents delete this history on a timer.** Claude Code removes sessions
-> unused for 30 days by default — and it cannot be switched off, only pushed far
-> out (its own schema rejects `0`). Qoder has a similar cleanup setting. Run
-> `:retention` and oh-my-session will show you the config and apply it for you.
+Agents **auto-delete** old sessions (Claude ~30 days by default). `:retention` shows the config and can fix it for you.
 
 ---
 
@@ -71,6 +56,8 @@ You use more than one coding agent. Each dumps sessions into a different home di
 - **Resume-ready** — `yy` copies the exact command to your clipboard (macOS works out of the box via `pbcopy`; Qoder includes `cd …`)
 - **Chat preview** — Enter opens a **view-only** transcript, newest first; Esc back to the list
 - **Vim-ish TUI** — ↑↓ · gg/G · `/` search · Space multi-select · `dd` + `:wq` delete
+- **English / 简体中文** — first launch picks a language; change anytime with `:lang`
+- **`:feedback`** — opens the GitHub repo in your browser
 - **Organize locally** — rename (`i`), star (`*`), tag (`t`) — **never rewrites agent stores**
 - **Retention check** — warns when an agent is set to auto-delete old sessions; `:retention` applies the config for you (asks first, keeps a `.bak`)
 - **Private by default** — titles / stars / tags live in gitignored CSV under `data/`
@@ -171,6 +158,8 @@ Wide terminals (≥ ~120 cols): **tags | session table | detail/chat**.
 | `:wq` | **Apply** deletes and quit |
 | `:q` / `:q!` | Quit if clean · force quit discard marks |
 | `:retention` | Stop agents auto-deleting old sessions (shows the change, asks first) |
+| `:lang` | Change UI language (`en` / `zh`; first launch asks once) |
+| `:feedback` | Open the GitHub repo in your browser |
 | `:help` | Full shortcut overlay |
 
 Bare `q` and `Ctrl-C` **do not** quit (avoids losing pending deletes).
@@ -188,6 +177,7 @@ Preferences are **local only** — they never patch Grok / Qoder / Claude stores
 | Rename (`i`) | `data/session-titles.csv` | `source,id,title,updated_at` |
 | Star (`*`) | `data/session-stars.csv` | Pin + protect from `dd` |
 | Tag (`t`) | `data/session-tags.csv` | One tag per session |
+| Language | `data/ui-locale` | `en` or `zh` (first-run prompt) |
 
 These paths are **gitignored**. Safe to back up privately; not published with the repo.
 

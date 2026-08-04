@@ -49,7 +49,7 @@
 | `CLAUDE_CONFIG_DIR` | Claude 根，默认 `~/.claude` |
 | `CODEX_HOME` | Codex 根，默认 `~/.codex` |
 | `AGENT_SESSION_SOURCES` | 逗号分隔 source 过滤，如 `grok,qoder` |
-| `OMS_DATA_DIR` | 本地 CSV（标题/星标/标签）目录，默认 `<repo>/data`；截图 fixture 用它避免污染用户数据 |
+| `OMS_DATA_DIR` | 本地 CSV（标题/星标/标签/语言）目录，默认 `<repo>/data`；截图 fixture 用它避免污染用户数据 |
 
 ---
 
@@ -71,6 +71,7 @@
 - 日常入口：`npm start`  
 - `yy`：= **copy resume command** 到系统剪贴板；macOS 使用系统自带 `pbcopy`；单独 `y` 只进入 pending，不 spawn resume 命令  
 - **`i`**：rename → `data/session-titles.csv`（见 §1.3）  
+- **首次启动语言弹窗** → 写 `data/ui-locale`（`en`|`zh`）；`:lang` 可再改；`:feedback` 打开 GitHub 仓库页（系统浏览器）  
 - `Space` → 片选切换；`:empty`/`:missing`/`:bad`（或 `:sel …`）→ 批量片选；`dd` → 标记删除（片选批量 / 否则当前行）；`:wq` → **真正删盘** 并退出（见上 §1.3 / §1.6）  
 - **禁止**全帧 erase 重绘（workflow §2.6；BUG-001）  
 - 列宽/分栏/脑门/快捷键：见 `d/ui-tui.md`  

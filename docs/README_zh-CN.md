@@ -1,13 +1,12 @@
 # oh-my-session
 
-**一份本机 AI coding 会话的文件管理器 —— 尤其是那些还没做完的。**
+**别再翻 `~/.claude` / `~/.grok` 找半截对话了。**
 
-统一列举、查看、打标、清理 **Grok Build**、**Qoder**、**Claude Code** 等本地会话：续跑命令、健康状态、只读对话回看。
+一张表管住 Grok · Qoder · Claude 的本地会话：能不能续跑、去哪个目录、`yy` 复制命令、Enter 回看聊天。
 
-[![npm](https://img.shields.io/badge/npm-oh--my--session-cb3837)](https://www.npmjs.com/package/oh-my-session)
+[![npm](https://img.shields.io/npm/v/oh-my-session.svg)](https://www.npmjs.com/package/oh-my-session)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](../LICENSE)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg)](https://nodejs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6.svg)](https://www.typescriptlang.org/)
 
 [English](../README.md) · **简体中文**
 
@@ -16,21 +15,7 @@ npm install -g oh-my-session
 oms
 ```
 
-每一个 Qoder / Claude Code / Grok 会话都是一个"工作现场"：一个仓库路径、一串决策、
-一个搭了一半的心智模型，有时还有一个差一点就改好的修复。
-
-一周之后，这个现场只剩下一个你已经想不起来的目录里的一串 UUID。你忘掉的不只是
-session id —— 还有 Agent 当时加载的是哪个仓库、它已经定位到了哪个 bug、你已经跟它
-解释过哪些约束，以及那个等着继续的半成品改动。
-
-`oh-my-session` 不会替你记住这些工作。它保证这份记录还在，并且你能在一个地方重新
-找到它：跨 Agent 搜索，重命名 / 打标 / 星标你在意的，预览对话，然后在你准备继续时
-复制出完全正确的 resume 命令。
-
-> **你的 Agent 会按时间自动删掉这些记录。** Claude Code 默认删除 30 天未使用的
-> 会话，而且它无法真正关闭，只能把期限推远（它自己的 schema 拒绝 `0`）。Qoder 也有
-> 类似的清理设置。运行 `:retention`，oh-my-session 会把要改的配置给你看，确认后
-> 帮你改好。
+Agent 默认会**自动删旧会话**（Claude 约 30 天）。`:retention` 一键看清配置并帮你改掉。
 
 ---
 
@@ -38,15 +23,15 @@ session id —— 还有 Agent 当时加载的是哪个仓库、它已经定位�
 
 主界面（标签栏 · 会话表 · 详情）：
 
-![主界面](./images/tui-main.png)
+![主界面](./images/tui-main-zh.png)
 
 打开聊天（Enter · 近→远 · Esc 回列表）：
 
-![聊天视图](./images/tui-chat.png)
+![聊天视图](./images/tui-chat-zh.png)
 
 `:retention` —— 各 Agent 正准备删掉什么，以及能阻止它的配置：
 
-![保留期浮层](./images/tui-retention.png)
+![保留期浮层](./images/tui-retention-zh.png)
 
 ---
 
@@ -57,21 +42,23 @@ session id —— 还有 Agent 当时加载的是哪个仓库、它已经定位�
 | 问题 | 没有本工具 | 用 **oh-my-session** |
 |------|------------|------------------------|
 | 还有哪些会话？ | 翻 `~/.grok`、`~/.qoder`、`~/.claude` | 一张按活跃时间排序的表 |
-| 还能不能续跑？ | 试了才知道 | **OK / Empty / Missing** 徽章 |
-| 该 `cd` 到哪？ | 猜项目路径 | **RESUME DIR** + `yy` 复制命令 |
+| 还能不能续跑？ | 试了才知道 | **正常 / 空会话 / 目录没了** |
+| 该 `cd` 到哪？ | 猜项目路径 | **续跑目录** + `yy` 复制命令 |
 | 当初聊了啥？ | 硬读 JSONL | **Enter** → 右侧聊天（近→远） |
-| 怎么整理？ | 没有 | 标签 / 星标 / 重命名（本地 CSV） |
+| 怎么整理？ | 没有 | 标签 / 置顶 / 重命名（本地 CSV） |
 
 ---
 
 ## 功能特性
 
 - **多 Agent 发现** — Grok Build、Qoder、Claude Code（Codex / Cursor 预留）
-- **健康一览** — `OK` · `Empty` · `Missing`（路径没了也会保留字符串）
+- **健康一览** — `正常` · `空会话` · `目录没了`（路径没了也会保留字符串）
 - **续跑就绪** — `yy` 把完整命令复制到剪贴板（macOS 通过系统自带 `pbcopy` 开箱即用；Qoder 会带 `cd …`）
 - **对话预览** — Enter 打开**只读** transcript，最新在上；Esc 回中间列表
-- **Vim 风格 TUI** — ↑↓ · gg/G · `/` 搜索 · Space 片选 · `dd` + `:wq` 删除
-- **本地整理** — 重命名（`i`）、星标（`*`）、标签（`t`）— **绝不改写**各 Agent 原生存储
+- **Vim 风格 TUI** — ↑↓ · gg/G · `/` 搜索 · Space 选中 · `v` 可视选择 · `dd` + `:wq` 删除
+- **中英双语** — 首次启动选择语言；之后可用 `:lang` 切换
+- **`:feedback`** — 浏览器打开本仓库 GitHub（反馈 / Issue）
+- **本地整理** — 重命名（`i`）、置顶（`*`）、分配标签（`t`）— **绝不改写**各 Agent 原生存储
 - **保留期检查** — 发现 Agent 正在自动删除旧会话时给出提示；`:retention` 确认后一键改配（并留 `.bak`）
 - **默认隐私** — 标题 / 星标 / 标签写在 gitignore 的 `data/*.csv`
 - **自动刷新** — 空闲时每 8 秒重扫磁盘
@@ -171,6 +158,8 @@ oms --help
 | `:wq` | **应用**删除并退出 |
 | `:q` / `:q!` | 无待删时退出 · 丢弃标记强制退出 |
 | `:retention` | 阻止 Agent 自动删除旧会话（展示改动，确认后生效） |
+| `:lang` | 切换界面语言（`en` / `zh`；首次启动会询问一次） |
+| `:feedback` | 用浏览器打开本仓库 GitHub（反馈 / Issue） |
 | `:help` | 完整快捷键浮层 |
 
 裸 `q` 与 `Ctrl-C` **不会**退出（防止误丢待删标记）。
@@ -188,6 +177,7 @@ oms --help
 | 重命名（`i`） | `data/session-titles.csv` | `source,id,title,updated_at` |
 | 星标（`*`） | `data/session-stars.csv` | 置顶 + 保护不被 `dd` |
 | 标签（`t`） | `data/session-tags.csv` | 一会话一个标签 |
+| 界面语言 | `data/ui-locale` | `en` 或 `zh`（首次启动询问） |
 
 这些路径在 **.gitignore** 中。可自行私密备份，不会随仓库公开。
 

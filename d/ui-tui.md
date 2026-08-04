@@ -145,8 +145,9 @@ gutter 列画 │；表头行接缝用 ┬
 | `↑↓` | 下 / 上（焦点在列表 / 标签栏 / 聊天详情时各自滚动） |
 | **`Enter`** | **打开对话**：右侧栏显示该会话 transcript，**近→远**（最新在上）；焦点切到 detail |
 | `gg` / `G` | 列表首 / 末 |
-| **`Space`** | **片选**：切换 multi-select（行首 `*`；脑门 `sel:N`） |
-| **`*`** | **星标 / 取消**：CSV 持久化；**置顶**；**禁止 `dd`**，需先 `*` 取消星标 |
+| **`Space`** | **选中**：切换当前行 multi-select（行首 `*`；脑门 `sel:N`） |
+| **`v`** | **可视选择**（vim）：从当前行开始，↑↓ 扩展范围；再 `v` 结束（保留选中）；`Esc` 先结束可视再清空 |
+| **`*`** | **置顶 / 取消**：CSV 持久化；**置顶**；**禁止 `dd`**，需先 `*` 取消置顶 |
 | **`i`** | **Rename**：TITLE 内联编辑；**Esc** / **Enter** 写 CSV |
 | `dd` | **标记删除**（片选批量 / 当前行）；**跳过已星标**并提示 |
 | `u` | 撤销最近一次删除标记（恢复列表；多次 `dd` 可逐条 undo） |
@@ -178,7 +179,11 @@ gutter 列画 │；表头行接缝用 ┬
 | `:q!` | — | 丢弃全部 `dd` 标记后强制退出（不删盘） |
 | `:wq` | `:x` | 应用全部 `dd` 删除并退出 |
 | `:retention` | `:ret` | 打开保留期浮层：展示 Agent 自动删会话的配置，`y` 确认后改写 |
-| `:help` | `:h` · `:?` | 底栏列出可用命令 |
+| `:lang` | `:language` · `:locale` | 切换界面语言；也可 `:lang en` / `:lang zh` |
+| `:feedback` | `:fb` · `:github` · `:issues` | 用系统浏览器打开本仓库 GitHub（反馈 / Issue） |
+| `:help` | `:h` · `:?` | 快捷键帮助浮层 |
+
+**语言（首次启动）：** 若 `data/ui-locale` 不存在 → **阻塞弹窗**选 `1` English / `2` 简体中文（禁 Esc）；写入 `data/ui-locale`（`en`|`zh`）后继续（再视情况出 retention 弹窗）。之后可用 `:lang` 重开。
 
 **片选语义：** `Space` 只切换勾选，不删。勾选集合跨筛选保留（按 `source:id`）；`dd` 对勾选集合批量标记删除后清空勾选。
 
@@ -197,6 +202,7 @@ gutter 列画 │；表头行接缝用 ┬
 | 位置 | 格式 |
 |------|------|
 | `data/session-titles.csv` | `source,id,title,updated_at`（逗号/引号按 RFC4180） |
+| `data/ui-locale` | 单行 `en` 或 `zh`（gitignore） |
 
 discover 后 `applyTitleOverrides()` 用 CSV 覆盖展示标题。个人 CSV 默认 **gitignore**。
 

@@ -14,7 +14,8 @@
     "prepack": "npm run build",
     "list": "tsx src/index.ts --list",
     "list:json": "tsx src/index.ts --json",
-    "shots": "bash scripts/screenshot.sh main && bash scripts/screenshot.sh chat && bash scripts/screenshot.sh retention"
+    "shots": "bash scripts/screenshot.sh main && bash scripts/screenshot.sh chat && bash scripts/screenshot.sh retention",
+    "shots:zh": "OMS_SHOT_LOCALE=zh bash scripts/screenshot.sh main && OMS_SHOT_LOCALE=zh bash scripts/screenshot.sh chat && OMS_SHOT_LOCALE=zh bash scripts/screenshot.sh retention"
   },
   "engines": {
     "node": ">=18"

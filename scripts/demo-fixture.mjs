@@ -378,6 +378,8 @@ const data = path.join(root, "data");
 w(path.join(data, "session-titles.csv"), titles.join("\n") + "\n");
 w(path.join(data, "session-stars.csv"), stars.join("\n") + "\n");
 w(path.join(data, "session-tags.csv"), tags.join("\n") + "\n");
+// Screenshots / demos: skip first-run language popup (English chrome).
+w(path.join(data, "ui-locale"), "en\n");
 
 // Agent settings in their default (cleanup-enabled) state, with unrelated keys
 // present, so the retention popup has something real to report and to preserve.
