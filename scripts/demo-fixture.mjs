@@ -60,10 +60,14 @@ const jsonl = (rows) => rows.map((r) => JSON.stringify(r)).join("\n") + "\n";
  * Sessions. `repo` is a directory we actually create, unless `missing` is set —
  * then the path is recorded but never created, which is what drives Missing.
  */
+/**
+ * Titles stay short (≤ ~16 display cols) so README screenshots never ellipsize.
+ * Prefer “real conversation names” over technical essays.
+ */
 const SESSIONS = [
   {
     agent: "claude",
-    title: "Fix flaky auth test in CI",
+    title: "Fix auth flake",
     repo: "~/code/payments-api",
     ageMs: 2 * HOUR,
     tag: "payments",
@@ -81,7 +85,7 @@ const SESSIONS = [
   },
   {
     agent: "claude",
-    title: "Migrate settings loader to zod",
+    title: "Zod settings",
     repo: "~/code/payments-api",
     ageMs: 20 * HOUR,
     tag: "payments",
@@ -96,7 +100,7 @@ const SESSIONS = [
   },
   {
     agent: "qoder",
-    title: "Design the retention warning UX",
+    title: "Retention popup",
     repo: "~/code/oh-my-session",
     ageMs: 3 * DAY,
     tag: "oh-my-session",
@@ -114,7 +118,7 @@ const SESSIONS = [
   },
   {
     agent: "qoder",
-    title: "Differential paint regression on Esc",
+    title: "Esc paint flash",
     repo: "~/code/oh-my-session",
     ageMs: 5 * DAY,
     tag: "oh-my-session",
@@ -129,7 +133,7 @@ const SESSIONS = [
   },
   {
     agent: "grok",
-    title: "Explain the vector index rebuild",
+    title: "Vector rebuild",
     repo: "~/code/search-service",
     ageMs: 6 * DAY,
     tag: "search",
@@ -144,7 +148,7 @@ const SESSIONS = [
   },
   {
     agent: "grok",
-    title: "Reduce cold start on the worker image",
+    title: "Cold start 9s",
     repo: "~/code/search-service",
     ageMs: 9 * DAY,
     tag: "search",
@@ -157,7 +161,7 @@ const SESSIONS = [
   },
   {
     agent: "claude",
-    title: "Draft the pricing page copy",
+    title: "Pricing copy",
     repo: "~/code/marketing-site",
     ageMs: 12 * DAY,
     tag: "marketing",
@@ -170,7 +174,7 @@ const SESSIONS = [
   },
   {
     agent: "qoder",
-    title: "Port CSV stores to a shared data dir",
+    title: "Shared data dir",
     repo: "~/code/oh-my-session",
     ageMs: 14 * DAY,
     tag: "oh-my-session",
@@ -183,7 +187,7 @@ const SESSIONS = [
   },
   {
     agent: "claude",
-    title: "Why does the webhook retry twice",
+    title: "Webhook double fire",
     repo: "~/code/payments-api",
     ageMs: 18 * DAY,
     tag: "payments",
@@ -198,7 +202,7 @@ const SESSIONS = [
   },
   {
     agent: "grok",
-    title: "Tune the ranking weights",
+    title: "Ranking weights",
     repo: "~/code/search-service",
     ageMs: 23 * DAY,
     tag: "search",
@@ -211,7 +215,7 @@ const SESSIONS = [
   },
   {
     agent: "claude",
-    title: "Audit the S3 bucket policies",
+    title: "S3 public buckets",
     repo: "~/code/infra",
     ageMs: 27 * DAY,
     tag: "infra",
@@ -224,7 +228,7 @@ const SESSIONS = [
   },
   {
     agent: "qoder",
-    title: "Sketch the plugin API",
+    title: "Plugin API",
     repo: "~/code/oh-my-session",
     ageMs: 31 * DAY,
     tag: "oh-my-session",
@@ -236,7 +240,7 @@ const SESSIONS = [
   // Missing: repo path is recorded but never created on disk.
   {
     agent: "grok",
-    title: "Spike: replace the queue with NATS",
+    title: "NATS queue spike",
     repo: "~/code/scratch-queue-spike",
     ageMs: 41 * DAY,
     missing: true,

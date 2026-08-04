@@ -83,7 +83,7 @@ export interface RawTuiOptions {
  * share remaining width with caps so TITLE does not starve the path.
  */
 const LC = {
-  mark: 2, // cursor ▌ + multi *
+  mark: 2, // cursor ▌ + multi # (not * — * is pin/star only)
   star: 3, // * / · cell (ASCII-safe; ★/☆ missing in many mono fonts)
   /** Gaps (min floors, display cols) */
   gs: 1, // star → STATUS (icon column, 1 is enough)
@@ -429,6 +429,8 @@ export async function runRawTui(
   /** i — rename current session title (insert mode) */
   let renameMode = false;
   let renameBuf = "";
+  /** Cursor index into [...renameBuf] (grapheme units via string spread). */
+  let renamePos = 0;
   /** Title when edit started — used only if empty commit */
   let renameOrig = "";
   let cursor = 0;
@@ -630,32 +632,58 @@ export async function runRawTui(
   }
 
   /**
-   * TITLE cell while renaming: show buffer + caret in-cell (not footer).
-   * Keeps the caret end visible when text is wider than the column.
+   * TITLE cell while renaming: buffer with in-cell caret at renamePos.
+   * Scrolls so the caret stays visible when text is wider than the column.
    */
   function titleRenameCell(width: number): string {
     const caret = "▌";
-    const text = renameBuf.replace(/\s+/g, " ");
-    const full = text + caret;
+    const chars = [...renameBuf];
+    const pos = Math.max(0, Math.min(renamePos, chars.length));
+    const full =
+      chars.slice(0, pos).join("") + caret + chars.slice(pos).join("");
     if (displayWidth(full) <= width) return padEndWidth(full, width);
 
-    // Keep right side (where caret is); optional leading …
-    let acc = caret;
-    let w = displayWidth(caret);
-    const chars = [...text];
-    for (let i = chars.length - 1; i >= 0; i--) {
-      const ch = chars[i]!;
-      const cw = displayWidth(ch);
-      if (w + cw > width - 1) break;
-      acc = ch + acc;
-      w += cw;
+    // Overflow: grow a window around the caret (prefer keeping caret visible)
+    let left: string[] = [];
+    let right: string[] = [];
+    let used = displayWidth(caret);
+    let li = pos - 1;
+    let ri = pos;
+    // Prefer chars left of caret first (typing at end keeps caret at right edge)
+    while (li >= 0) {
+      const d = displayWidth(chars[li]!);
+      if (used + d > width) break;
+      left.unshift(chars[li]!);
+      used += d;
+      li--;
     }
-    if (displayWidth(acc) < width) {
-      // room for ellipsis prefix when truncated from left
-      const room = width - displayWidth(acc);
-      if (room >= 1) acc = "…" + acc;
+    while (ri < chars.length) {
+      const d = displayWidth(chars[ri]!);
+      if (used + d > width) break;
+      right.push(chars[ri]!);
+      used += d;
+      ri++;
     }
-    return padEndWidth(acc, width);
+    // If nothing fit on the left but we skipped left chars, mark with …
+    let s = left.join("") + caret + right.join("");
+    if (li >= 0) {
+      // free 1 col for leading …
+      while (left.length && displayWidth("…" + left.join("") + caret + right.join("")) > width) {
+        left.shift();
+      }
+      const body = left.join("") + caret + right.join("");
+      s = displayWidth("…" + body) <= width ? "…" + body : body;
+    } else if (ri < chars.length) {
+      while (
+        right.length &&
+        displayWidth(left.join("") + caret + right.join("") + "…") > width
+      ) {
+        right.pop();
+      }
+      const body = left.join("") + caret + right.join("");
+      s = displayWidth(body + "…") <= width ? body + "…" : body;
+    }
+    return padEndWidth(s, width);
   }
 
   function buildListRow(abs: number, isCursor: boolean): string {
@@ -668,15 +696,15 @@ export async function runRawTui(
     const isMulti = multiSelect.has(sessionKey(s));
     const starred = isStarred(s);
     const editing = renameMode && isCursor;
-    // mark: cursor + multi only (star has its own column)
+    // mark: cursor ▌ + multi # only (* reserved for pin/star column)
     const markPlain = isCursor
       ? isMulti
-        ? "▌*"
+        ? "▌#"
         : "▌ "
       : isMulti
-        ? " *"
+        ? " #"
         : "  ";
-    // star: * filled / · empty — avoid ★/☆ (missing glyph → tofu in many mono faces)
+    // pin/star: * filled / · empty — avoid ★/☆ (missing glyph → tofu in many mono faces)
     const starPlain = padEndWidth(starred ? "*" : "·", LC.star);
     const gapStar = " ".repeat(LC.gs);
     const statusPlain = padEndWidth(healthLabel(h), LC.status);
@@ -2786,6 +2814,7 @@ export async function runRawTui(
     renameMode = true;
     renameOrig = s.title;
     renameBuf = s.title;
+    renamePos = [...renameBuf].length; // caret at end
     statusLine = "";
     paintRenameLive();
   }
@@ -2800,6 +2829,7 @@ export async function runRawTui(
     const title = renameBuf.replace(/\s+/g, " ").trim();
     renameMode = false;
     renameBuf = "";
+    renamePos = 0;
     renameOrig = "";
 
     if (!s) {
@@ -3128,13 +3158,61 @@ export async function runRawTui(
           exitRenameKeep();
           return;
         }
+        // ← / → move caret (and Home / End)
+        if (key.name === "left") {
+          renamePos = Math.max(0, renamePos - 1);
+          paintRenameLive();
+          return;
+        }
+        if (key.name === "right") {
+          renamePos = Math.min([...renameBuf].length, renamePos + 1);
+          paintRenameLive();
+          return;
+        }
+        if (key.name === "home") {
+          renamePos = 0;
+          paintRenameLive();
+          return;
+        }
+        if (key.name === "end") {
+          renamePos = [...renameBuf].length;
+          paintRenameLive();
+          return;
+        }
         if (key.name === "backspace") {
-          renameBuf = renameBuf.slice(0, -1);
+          if (renamePos > 0) {
+            const chars = [...renameBuf];
+            chars.splice(renamePos - 1, 1);
+            renameBuf = chars.join("");
+            renamePos--;
+          }
+          paintRenameLive();
+          return;
+        }
+        // Forward delete (fn-backspace / Del)
+        if (key.name === "delete") {
+          const chars = [...renameBuf];
+          if (renamePos < chars.length) {
+            chars.splice(renamePos, 1);
+            renameBuf = chars.join("");
+          }
           paintRenameLive();
           return;
         }
         if (key.ctrl && key.name === "u") {
           renameBuf = "";
+          renamePos = 0;
+          paintRenameLive();
+          return;
+        }
+        // Ctrl-A / Ctrl-E — line start / end (readline habit)
+        if (key.ctrl && (key.name === "a" || str === "\x01")) {
+          renamePos = 0;
+          paintRenameLive();
+          return;
+        }
+        if (key.ctrl && (key.name === "e" || str === "\x05")) {
+          renamePos = [...renameBuf].length;
           paintRenameLive();
           return;
         }
@@ -3142,7 +3220,11 @@ export async function runRawTui(
           return;
         }
         if (str && !key.ctrl && !key.meta && str >= " ") {
-          renameBuf += str;
+          const chars = [...renameBuf];
+          const insert = [...str];
+          chars.splice(renamePos, 0, ...insert);
+          renameBuf = chars.join("");
+          renamePos += insert.length;
           paintRenameLive();
           return;
         }

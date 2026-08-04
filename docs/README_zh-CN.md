@@ -1,8 +1,10 @@
 # oh-my-session
 
-**别再翻 `~/.claude` / `~/.grok` 找半截对话了。**
+**别再对着 `/resume` 翻那份长对话记录列表，找上周聊到一半的那次了。**
 
-一张表管住 Grok · Qoder · Claude 的本地会话：能不能续跑、去哪个目录、`yy` 复制命令、Enter 回看聊天。
+也别硬想：那次是 Qoder、Grok 还是 Claude Code？更别猜当时在哪个目录里开的。
+
+**一个工具，全部整理好。** `yy` 复制续跑命令，快捷键跟 Vim 一样顺手。
 
 [![npm](https://img.shields.io/npm/v/oh-my-session.svg)](https://www.npmjs.com/package/oh-my-session)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](../LICENSE)
@@ -15,7 +17,7 @@ npm install -g oh-my-session
 oms
 ```
 
-Agent 默认会**自动删旧会话**（Claude 约 30 天）。`:retention` 一键看清配置并帮你改掉。
+Agent 还会**偷偷删旧会话**（Claude 默认约 30 天）。用 `:retention` 看清配置，确认后一键改掉。
 
 ---
 

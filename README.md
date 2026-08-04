@@ -1,8 +1,10 @@
 # oh-my-session
 
-**Stop digging through `~/.claude` / `~/.grok` for half-finished agent chats.**
+**Stop scrolling a long conversation list from `/resume` to find last week's half-finished one.**
 
-One table for Grok · Qoder · Claude sessions: resume health, project path, `yy` to copy the command, Enter to re-read the chat.
+Stop guessing whether that was Qoder, Grok, or Claude Code — and stop hunting which directory you were in.
+
+**One tool. All sessions. Sorted.** Copy the resume command with `yy`. Keys feel like Vim.
 
 [![npm](https://img.shields.io/npm/v/oh-my-session.svg)](https://www.npmjs.com/package/oh-my-session)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
@@ -15,7 +17,7 @@ npm install -g oh-my-session
 oms
 ```
 
-Agents **auto-delete** old sessions (Claude ~30 days by default). `:retention` shows the config and can fix it for you.
+Agents also **auto-delete** old sessions (Claude ~30 days by default). `:retention` shows the config and can fix it for you.
 
 ---
 
