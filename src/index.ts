@@ -56,7 +56,7 @@ function printHelp(): void {
   console.log(`${name} ${ver}
 
   npm install -g ${name}
-  oms                    Interactive TUI (alias: oh-my-session)
+  oms                    Interactive TUI
 
 Commands:
   oms version            Print version (+ check npm for updates)
@@ -86,8 +86,8 @@ Keys: ↑↓ Space · * star · i rename · dd · :empty/:bad · / search · yy 
       :retention  check & disable agent session auto-deletion (asks first)
 
 Shell completion:
-  eval "$(oms completion bash)"          # bash
-  oms completion zsh > ~/.zfunc/_oms     # zsh (add dir to fpath)
+  eval "$(oms completion bash)"
+  oms completion zsh > ~/.zfunc/_oms
   oms completion fish > ~/.config/fish/completions/oms.fish
 `);
 }

@@ -7,6 +7,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const PKG_NAME = "oh-my-session";
+/** Primary CLI first. */
+export const CLI_PRIMARY = "oms";
 export const CLI_NAMES = ["oms", "oh-my-session"] as const;
 
 let cached: { name: string; version: string } | null = null;

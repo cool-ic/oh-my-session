@@ -84,6 +84,8 @@ npm install -g oh-my-session
 oms
 ```
 
+After install, npm prints a short reminder that the command is **`oms`**.
+
 Or run without installing globally:
 
 ```bash

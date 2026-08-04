@@ -84,6 +84,8 @@ npm install -g oh-my-session
 oms
 ```
 
+安装结束后 npm 会提示：命令是 **`oms`**。
+
 也可以不全局安装，直接试用：
 
 ```bash
@@ -130,7 +132,7 @@ oms completion fish > ~/.config/fish/completions/oms.fish
 缓存文件：`~/.config/oms/update-check.json`（24 小时）。
 
 ```bash
-npm install -g oh-my-session@latest   # 与 oms upgrade 给出的命令相同
+npm install -g oh-my-session@latest   # 与 oms upgrade 相同
 OMS_NO_UPDATE=1 oms                    # 关闭检查与提示
 ```
 
