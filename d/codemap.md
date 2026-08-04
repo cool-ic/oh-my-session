@@ -7,7 +7,7 @@
 ## 树
 
 ```
-oh-my-sessions/
+oh-my-session/
   总纲领.md
   workflow.md                 # 过程权威
   compact-summary.md          # 会话续跑

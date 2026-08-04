@@ -1,31 +1,38 @@
 {
-  "name": "oh-my-sessions",
+  "name": "oh-my-session",
   "version": "0.1.0",
   "description": "A local file manager for unfinished AI coding sessions across Qoder, Claude Code, and Grok.",
   "type": "module",
+  "main": "./dist/index.js",
   "bin": {
-    "oh-my-sessions": "dist/index.js",
-    "oms": "dist/index.js"
+    "oms": "dist/index.js",
+    "oh-my-session": "dist/index.js"
   },
   "scripts": {
     "start": "tsx src/index.ts",
     "build": "tsc",
     "prepack": "npm run build",
     "list": "tsx src/index.ts --list",
-    "list:json": "tsx src/index.ts --json"
+    "list:json": "tsx src/index.ts --json",
+    "shots": "bash scripts/screenshot.sh main && bash scripts/screenshot.sh chat && bash scripts/screenshot.sh retention"
   },
   "engines": {
     "node": ">=18"
   },
   "keywords": [
-    "oh-my-sessions",
+    "oh-my-session",
+    "oh-my-session",
+    "oms",
     "agent",
     "session",
     "tui",
+    "cli",
     "grok",
     "qoder",
-    "claude"
+    "claude",
+    "claude-code"
   ],
+  "author": "cool-ic",
   "license": "MIT",
   "files": [
     "dist",
@@ -36,12 +43,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/cool-ic/oh-my-sessions.git"
+    "url": "git+https://github.com/cool-ic/oh-my-session.git"
   },
   "bugs": {
-    "url": "https://github.com/cool-ic/oh-my-sessions/issues"
+    "url": "https://github.com/cool-ic/oh-my-session/issues"
   },
-  "homepage": "https://github.com/cool-ic/oh-my-sessions#readme",
+  "homepage": "https://github.com/cool-ic/oh-my-session#readme",
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",
     "access": "public"

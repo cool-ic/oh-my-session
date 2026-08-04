@@ -97,9 +97,9 @@ const SESSIONS = [
   {
     agent: "qoder",
     title: "Design the retention warning UX",
-    repo: "~/code/oh-my-sessions",
+    repo: "~/code/oh-my-session",
     ageMs: 3 * DAY,
-    tag: "oh-my-sessions",
+    tag: "oh-my-session",
     star: true,
     turns: [
       ["user", "Agents delete old sessions on a timer. I want to warn the user and offer to fix it, but never change their config behind their back."],
@@ -115,9 +115,9 @@ const SESSIONS = [
   {
     agent: "qoder",
     title: "Differential paint regression on Esc",
-    repo: "~/code/oh-my-sessions",
+    repo: "~/code/oh-my-session",
     ageMs: 5 * DAY,
-    tag: "oh-my-sessions",
+    tag: "oh-my-session",
     turns: [
       ["user", "Leaving the chat view flashes the whole screen. It used to be instant."],
       ["assistant", "Something reintroduced a full-frame erase on the way out. The renderer is supposed to diff cells and repaint only what changed — a clear plus full redraw is what causes the flash. Restoring the diff path brings Esc back under about 25ms."],
@@ -171,9 +171,9 @@ const SESSIONS = [
   {
     agent: "qoder",
     title: "Port CSV stores to a shared data dir",
-    repo: "~/code/oh-my-sessions",
+    repo: "~/code/oh-my-session",
     ageMs: 14 * DAY,
-    tag: "oh-my-sessions",
+    tag: "oh-my-session",
     turns: [
       ["user", "Three modules each resolve the repo root separately. Collapse that."],
       ["assistant", "Moved it into `lib/paths.ts` as `dataDir()`, honoring `OMS_DATA_DIR`. Screenshot fixtures can now point somewhere else instead of overwriting your real titles and stars."],
@@ -225,9 +225,9 @@ const SESSIONS = [
   {
     agent: "qoder",
     title: "Sketch the plugin API",
-    repo: "~/code/oh-my-sessions",
+    repo: "~/code/oh-my-session",
     ageMs: 31 * DAY,
-    tag: "oh-my-sessions",
+    tag: "oh-my-session",
     turns: [
       ["user", "If someone wants to add Codex discovery without touching core, what is the smallest surface?"],
       ["assistant", "One function returning `SessionRecord[]` plus a resume hint. Everything else — health, tags, deletion — already works off that shape."],

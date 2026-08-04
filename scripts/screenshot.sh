@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Capture oh-my-sessions TUI into PNG via tmux + ansi_to_png.py
+# Capture oh-my-session TUI into PNG via tmux + ansi_to_png.py
 #
 # By default this runs against a generated demo fixture (scripts/demo-fixture.mjs)
 # so the README screenshots are reproducible and contain no private session data.
@@ -69,7 +69,7 @@ sleep "$WAIT"
 # wait until brand paints (main list or retention popup)
 for _ in $(seq 1 20); do
   tmux capture-pane -t "$SESSION" -pe -S -50 >"$ANSI" || true
-  if grep -qE 'oh-my-sessions|STATUS|auto-deletion|Session retention' "$ANSI" 2>/dev/null; then
+  if grep -qiE 'oh-my-session|status|source|auto-deletion|Session retention' "$ANSI" 2>/dev/null; then
     break
   fi
   sleep 0.4
@@ -88,10 +88,10 @@ case "$MODE" in
       # Acknowledge risks → list view (do NOT use bare `i` later for rename).
       tmux send-keys -t "$SESSION" 'i'
       sleep 0.8
-      # wait for STATUS header
+      # wait for column header (lowercase status/source after visual polish)
       for _ in $(seq 1 12); do
         tmux capture-pane -t "$SESSION" -pe -S -50 >"$ANSI" || true
-        if grep -q 'STATUS' "$ANSI" 2>/dev/null; then
+        if grep -qiE 'status|source|title' "$ANSI" 2>/dev/null; then
           break
         fi
         sleep 0.3

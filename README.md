@@ -1,14 +1,20 @@
 <div align="center">
 
-# oh-my-sessions
+# oh-my-session
 
 **A local file manager for the AI coding sessions you haven't finished.**
 
+[![npm](https://img.shields.io/npm/v/oh-my-session.svg)](https://www.npmjs.com/package/oh-my-session)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6.svg)](https://www.typescriptlang.org/)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20WSL-lightgrey.svg)](#)
-[![GitHub stars](https://img.shields.io/github/stars/cool-ic/oh-my-sessions?style=social)](https://github.com/cool-ic/oh-my-sessions)
+[![GitHub stars](https://img.shields.io/github/stars/cool-ic/oh-my-session?style=social)](https://github.com/cool-ic/oh-my-session)
+
+```bash
+npm install -g oh-my-session
+oms
+```
 
 **English** · [中文速览](./docs/README_zh-CN.md)
 
@@ -22,7 +28,7 @@ You didn't just forget the session id — you forgot which repo the agent had
 loaded, which bug it had already diagnosed, which constraints you'd already
 explained, and which half-finished fix was waiting to continue.
 
-`oh-my-sessions` doesn't remember that work for you. It makes sure the record of
+`oh-my-session` doesn't remember that work for you. It makes sure the record of
 it is still there, and that you can find it again in one place: search across
 every agent, rename and tag and star what matters, preview the transcript, and
 copy the exact resume command when you're ready to continue.
@@ -30,7 +36,7 @@ copy the exact resume command when you're ready to continue.
 > **Your agents delete this history on a timer.** Claude Code removes sessions
 > unused for 30 days by default — and it cannot be switched off, only pushed far
 > out (its own schema rejects `0`). Qoder has a similar cleanup setting. Run
-> `:retention` and oh-my-sessions will show you the config and apply it for you.
+> `:retention` and oh-my-session will show you the config and apply it for you.
 
 ---
 
@@ -54,7 +60,7 @@ Chat view after **Enter** (near→far; **Esc** back to sessions):
 
 You use more than one coding agent. Each dumps sessions into a different home directory with different resume rules. After a week you have dozens of half-finished threads and no idea:
 
-| Question | Without this tool | With **oh-my-sessions** |
+| Question | Without this tool | With **oh-my-session** |
 |----------|-------------------|-------------------------|
 | What sessions do I still have? | Dig through `~/.grok`, `~/.qoder`, `~/.claude` | One sorted table |
 | Can I resume this? | Trial and error | **OK / Empty / Missing** badges |
@@ -89,21 +95,21 @@ You use more than one coding agent. Each dumps sessions into a different home di
 ### Install & run
 
 ```bash
-npm install -g oh-my-sessions
+npm install -g oh-my-session
 oms
 ```
 
 Or run without installing globally:
 
 ```bash
-npx oh-my-sessions
+npx oh-my-session
 ```
 
 ### From source
 
 ```bash
-git clone https://github.com/cool-ic/oh-my-sessions.git
-cd oh-my-sessions
+git clone https://github.com/cool-ic/oh-my-session.git
+cd oh-my-session
 npm install
 npm start
 ```
@@ -223,7 +229,7 @@ Architecture map: [`d/codemap.md`](./d/codemap.md).
 ## Project layout
 
 ```
-oh-my-sessions/
+oh-my-session/
 ├── src/
 │   ├── index.ts           # CLI entry
 │   ├── discover/          # Grok / Qoder / Claude scanners
@@ -261,7 +267,7 @@ oh-my-sessions/
 - [ ] Export selected sessions metadata
 - [ ] Theme presets
 
-Issues and PRs welcome: [github.com/cool-ic/oh-my-sessions](https://github.com/cool-ic/oh-my-sessions).
+Issues and PRs welcome: [github.com/cool-ic/oh-my-session](https://github.com/cool-ic/oh-my-session).
 
 ---
 
@@ -286,6 +292,10 @@ Issues and PRs welcome: [github.com/cool-ic/oh-my-sessions](https://github.com/c
 
 <div align="center">
 
-**Stop hunting through `~/.agent` folders. Start a session with `npm start`.**
+**Stop hunting through `~/.agent` folders.**
+
+```bash
+npm install -g oh-my-session && oms
+```
 
 </div>

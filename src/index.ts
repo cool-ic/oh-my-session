@@ -35,10 +35,10 @@ function loadSessions(opts: {
 }
 
 function printHelp(): void {
-  console.log(`oh-my-sessions
+  console.log(`oh-my-session
 
-  npm install -g oh-my-sessions
-  oms                    Interactive TUI (alias: oh-my-sessions)
+  npm install -g oh-my-session
+  oms                    Interactive TUI (alias: oh-my-session)
 
 Notes:
   RESUME DIR = project path when the session was started (kept even if deleted)

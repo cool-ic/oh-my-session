@@ -25,9 +25,9 @@ SGR_RE = re.compile(r"\x1b\[([0-9;]*)m")
 OTHER_CSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-ln-z]")
 OSC = re.compile(r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)")
 
-# Match theme.canvas / theme.text (light paper + near-black body)
-DEFAULT_BG = (240, 242, 245)  # #F0F2F5
-DEFAULT_FG = (28, 33, 43)  # #1C212B
+# Match theme.canvas / theme.text (studio paper + near-black body)
+DEFAULT_BG = (246, 247, 249)  # #F6F7F9
+DEFAULT_FG = (26, 31, 40)  # #1A1F28
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _FONTS = _SCRIPT_DIR / "fonts"
@@ -47,7 +47,7 @@ SARASA_CANDIDATES = [
     _FONTS / "SarasaMonoSC-Regular.ttf",
     Path.home() / ".local/share/fonts/SarasaMonoSC-SemiBold.ttf",
     Path.home() / ".local/share/fonts/SarasaMonoSC-Regular.ttf",
-    Path.home() / ".local/share/fonts/oh-my-sessions/SarasaMonoSC-Regular.ttf",
+    Path.home() / ".local/share/fonts/oh-my-session/SarasaMonoSC-Regular.ttf",
 ]
 
 # (path, ttc_index) — "Noto Sans Mono CJK SC" is index 7 in the Regular TTC.
@@ -65,7 +65,7 @@ MONO_FALLBACK = [
 
 CJK_TTC = [
     _FONTS / "wqy-microhei.ttc",
-    Path.home() / ".local/share/fonts/oh-my-sessions/wqy-microhei.ttc",
+    Path.home() / ".local/share/fonts/oh-my-session/wqy-microhei.ttc",
     Path("/usr/share/fonts/truetype/wqy/wqy-microhei.ttc"),
 ]
 

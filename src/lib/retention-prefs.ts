@@ -1,5 +1,5 @@
 /**
- * User-level retention preferences for oh-my-sessions (not agent config).
+ * User-level retention preferences for oh-my-session (not agent config).
  *
  * File: $OMS_DATA_DIR/retention-prefs.csv
  * Columns: agent,status,updated_at,detail

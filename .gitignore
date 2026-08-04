@@ -22,3 +22,6 @@ data/.retention-prefs.*.tmp
 scripts/fonts/Sarasa*.ttf
 scripts/fonts/Sarasa*.otf
 *.7z
+
+# npm pack artifacts
+*.tgz

@@ -26,7 +26,7 @@
 ### 入口
 
 ```bash
-cd /home/f/oh-my-sessions && npm start
+cd /home/f/oh-my-session && npm start
 ```
 
 ### 关键路径

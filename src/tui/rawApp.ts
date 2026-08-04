@@ -146,7 +146,7 @@ const HELP_GROUPS: ReadonlyArray<{ title: string; keys: [string, string][] }> =
         ["Titles", "data/session-titles.csv (local)"],
         ["Stars", "data/session-stars.csv — pin + no dd"],
         ["Tags", "data/session-tags.csv — one tag per session"],
-        ["Refresh", "Auto re-scan every 8s (skipped while typing)"],
+        ["Refresh", "Background re-scan every 8s (not shown in chrome)"],
       ],
     },
   ];
@@ -203,7 +203,7 @@ const LC_FIXED =
   LC.g5;
 
 const ESC = "\x1b";
-const TOOL_NAME = "oh-my-sessions";
+const TOOL_NAME = "oh-my-session";
 
 function hexRgb(hex: string): [number, number, number] {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex);
@@ -294,20 +294,27 @@ function clipAnsi(s: string, maxCols: number): string {
   return out + "…" + sgrDefault();
 }
 
-function padAnsi(s: string, width: number): string {
+/** Pad to width; trailing spaces use padBg so selection/zebra never seams. */
+function padAnsi(s: string, width: number, padBg: string = theme.canvas): string {
   const clipped = clipAnsi(s, width);
   const pad = width - visWidth(clipped);
-  // Trailing spaces must keep canvas BG (not terminal white)
   if (pad <= 0) return clipped;
-  return clipped + fg(theme.text, " ".repeat(pad));
+  return clipped + fgOn(padBg, theme.text, " ".repeat(pad));
 }
 
-function statusChip(h: SessionHealth): string {
+function statusChip(h: SessionHealth, rowBg?: string): string {
   const label = h === "ok" ? "OK" : h === "empty" ? "Empty" : "Missing";
   const plain = padEndWidth(label, LC.status);
+  // Pills keep their own fill; rowBg unused (kept for call-site symmetry).
+  void rowBg;
   if (h === "ok") return fgBg(theme.pill.okFg, theme.pill.okBg, plain);
   if (h === "empty") return fgBg(theme.pill.emptyFg, theme.pill.emptyBg, plain);
   return fgBg(theme.pill.missingFg, theme.pill.missingBg, plain);
+}
+
+/** Foreground on an explicit row background (zebra / surface). */
+function fgOn(bgHex: string, fgHex: string, text: string): string {
+  return fgBg(fgHex, bgHex, text);
 }
 
 function sourcePlain(src: AgentSource): string {
@@ -702,7 +709,10 @@ export async function runRawTui(
   }
 
   function buildListRow(abs: number, isCursor: boolean): string {
-    if (abs < 0 || abs >= list.length) return " ".repeat(layout.listW);
+    if (abs < 0 || abs >= list.length) {
+      // Empty slots continue canvas — avoid a hard grey plate under the table
+      return fgOn(theme.canvas, theme.canvas, " ".repeat(layout.listW));
+    }
     const s = list[abs];
     const h = healthOf(s);
     const isMulti = multiSelect.has(sessionKey(s));
@@ -733,78 +743,115 @@ export async function runRawTui(
       : padEndWidth(titleRaw, layout.titleW);
     const pathPlain = pathCellPlain(s);
 
-    const style =
-      editing
-        ? { fg: theme.editFg, bg: theme.editBg }
-        : isCursor
-          ? { fg: theme.selectFg, bg: theme.selectBg }
-          : isMulti
-            ? { fg: theme.multiFg, bg: theme.multiBg }
-            : null;
-
-    const tailPlain =
-      statusPlain +
-      " ".repeat(LC.g1) +
-      srcPlain +
-      " ".repeat(LC.g2) +
-      agePlain +
-      " ".repeat(LC.g3) +
-      msgsPlain +
-      " ".repeat(LC.g4) +
-      titlePlain +
-      " ".repeat(LC.g5) +
-      pathPlain;
-
-    if (style) {
-      const plain = markPlain + starPlain + gapStar + tailPlain;
-      return fgBg(style.fg, style.bg, padEndWidth(plain, layout.listW));
+    // Rename: flat edit wash so the in-cell caret is obvious
+    if (editing) {
+      const plain =
+        markPlain +
+        starPlain +
+        gapStar +
+        statusPlain +
+        " ".repeat(LC.g1) +
+        srcPlain +
+        " ".repeat(LC.g2) +
+        agePlain +
+        " ".repeat(LC.g3) +
+        msgsPlain +
+        " ".repeat(LC.g4) +
+        titlePlain +
+        " ".repeat(LC.g5) +
+        pathPlain;
+      return fgBg(
+        theme.editFg,
+        theme.editBg,
+        padEndWidth(plain, layout.listW),
+      );
     }
 
+    // Cursor / multi / zebra: keep column roles (pill, source, meta) on shared row bg
+    const rowBg = isCursor
+      ? theme.selectBg
+      : isMulti
+        ? theme.multiBg
+        : abs % 2 === 1
+          ? theme.zebra
+          : theme.canvas;
+    const on = (c: string, t: string) => fgOn(rowBg, c, t);
+    const titleFg = isCursor
+      ? theme.selectFg
+      : isMulti
+        ? theme.multiFg
+        : theme.text;
+    const markFg = isCursor
+      ? theme.cursorBar
+      : isMulti
+        ? theme.multiMark
+        : theme.text;
     const pathColored = s.extra?.cwdMissing
-      ? fg(theme.missing, pathPlain)
-      : fg(theme.dim, pathPlain);
-
+      ? on(theme.missing, pathPlain)
+      : on(theme.meta, pathPlain);
     const starColored = starred
-      ? fg(theme.star, padEndWidth("*", LC.star))
-      : fg(theme.starEmpty, padEndWidth("·", LC.star));
+      ? on(theme.star, starPlain)
+      : on(theme.starEmpty, starPlain);
 
     return padAnsi(
-      markPlain +
+      on(markFg, markPlain) +
         starColored +
-        gapStar +
-        statusChip(h) +
-        " ".repeat(LC.g1) +
-        sourceCell(s.source) +
-        " ".repeat(LC.g2) +
-        fg(theme.dim, agePlain) +
-        " ".repeat(LC.g3) +
-        fg(theme.dim, msgsPlain) +
-        " ".repeat(LC.g4) +
-        fg(theme.text, titlePlain) +
-        " ".repeat(LC.g5) +
+        on(theme.text, gapStar) +
+        statusChip(h, rowBg) +
+        on(theme.text, " ".repeat(LC.g1)) +
+        on(theme.source[s.source] ?? theme.meta, srcPlain) +
+        on(theme.text, " ".repeat(LC.g2)) +
+        on(theme.meta, agePlain) +
+        on(theme.text, " ".repeat(LC.g3)) +
+        on(theme.meta, msgsPlain) +
+        on(theme.text, " ".repeat(LC.g4)) +
+        on(titleFg, titlePlain) +
+        on(theme.text, " ".repeat(LC.g5)) +
         pathColored,
       layout.listW,
+      rowBg,
     );
   }
 
   function buildColHeader(): string {
+    const h = theme.headerBg;
+    const c = theme.headerFg;
+    const on = (t: string) => fgOn(h, c, t);
+    // Quiet lowercase labels; AGE/MSGS right-aligned with their number columns
     return padAnsi(
-      "  " +
-        fg(theme.starEmpty, padEndWidth("·", LC.star)) +
-        " ".repeat(LC.gs) +
-        fg(theme.dim, padEndWidth("STATUS", LC.status)) +
-        " ".repeat(LC.g1) +
-        fg(theme.dim, padEndWidth("SOURCE", LC.source)) +
-        " ".repeat(LC.g2) +
-        fg(theme.dim, padStartWidth("AGE", LC.age)) +
-        " ".repeat(LC.g3) +
-        fg(theme.dim, padStartWidth("MSGS", LC.msgs)) +
-        " ".repeat(LC.g4) +
-        fg(theme.dim, padEndWidth("TITLE", layout.titleW)) +
-        " ".repeat(LC.g5) +
-        fg(theme.dim, padEndWidth("RESUME DIR", layout.pathW)),
+      on("  ") +
+        on(padEndWidth("·", LC.star)) +
+        on(" ".repeat(LC.gs)) +
+        on(padEndWidth("status", LC.status)) +
+        on(" ".repeat(LC.g1)) +
+        on(padEndWidth("source", LC.source)) +
+        on(" ".repeat(LC.g2)) +
+        on(padStartWidth("age", LC.age)) +
+        on(" ".repeat(LC.g3)) +
+        on(padStartWidth("msgs", LC.msgs)) +
+        on(" ".repeat(LC.g4)) +
+        on(padEndWidth("title", layout.titleW)) +
+        on(" ".repeat(LC.g5)) +
+        on(padEndWidth("resume dir", layout.pathW)),
       layout.listW,
+      h,
     );
+  }
+
+  /** List↔detail gutter: stronger when either pane is focused. */
+  function gutterListDetail(): string {
+    const c =
+      focusPane === "sessions" || focusPane === "detail"
+        ? theme.border
+        : theme.line;
+    return fg(c, "│");
+  }
+
+  /** Tags↔list gutter: stronger when tags (or assign) focused. */
+  function gutterTagsList(): string {
+    const c =
+      focusPane === "tags" || tagAssignMode ? theme.border : theme.line;
+    return fg(c, "│");
   }
 
   function paintListSlot(slot: number): void {
@@ -822,7 +869,7 @@ export async function runRawTui(
         row,
         layout.listCol + layout.listW,
         1,
-        fg(theme.border, "│"),
+        gutterListDetail(),
       );
     }
   }
@@ -841,19 +888,19 @@ export async function runRawTui(
     const tw = L.tagW;
     const focused = focusPane === "tags" || tagAssignMode;
 
-    // header cell on col head row
+    // header cell on col head row — match list header surface
     const headLabel = tagAssignMode ? " assign " : " tags ";
     paintCell(
       L.rowColHead,
       1,
       tw,
       fgBg(
-        focused ? theme.brandNameFg : theme.brandTagFg,
-        focused ? theme.brandNameBg : theme.brandTagBg,
+        focused ? theme.brandNameFg : theme.headerFg,
+        focused ? theme.brandNameBg : theme.headerBg,
         padEndWidth(headLabel, tw),
       ),
     );
-    paintCell(L.rowColHead, tw + 1, 1, fg(theme.border, "│"));
+    paintCell(L.rowColHead, tw + 1, 1, gutterTagsList());
 
     if (tagAssignMode) {
       const tags = listTags();
@@ -870,8 +917,13 @@ export async function runRawTui(
         const row = L.rowList0 + i;
         const item = items[abs];
         if (!item) {
-          paintCell(row, 1, tw, " ".repeat(tw));
-          paintCell(row, tw + 1, 1, fg(theme.border, "│"));
+          paintCell(
+            row,
+            1,
+            tw,
+            fgOn(theme.surface, theme.surface, " ".repeat(tw)),
+          );
+          paintCell(row, tw + 1, 1, gutterTagsList());
           continue;
         }
         const sel = abs === tagAssignCursor;
@@ -885,7 +937,7 @@ export async function runRawTui(
             ? fg(theme.dim, text)
             : fg(theme.text, text);
         paintCell(row, 1, tw, cell);
-        paintCell(row, tw + 1, 1, fg(theme.border, "│"));
+        paintCell(row, tw + 1, 1, gutterTagsList());
       }
       return;
     }
@@ -898,8 +950,13 @@ export async function runRawTui(
       const row = L.rowList0 + i;
       const label = labels[abs];
       if (label == null) {
-        paintCell(row, 1, tw, " ".repeat(tw));
-        paintCell(row, tw + 1, 1, fg(theme.border, "│"));
+        paintCell(
+          row,
+          1,
+          tw,
+          fgOn(theme.surface, theme.surface, " ".repeat(tw)),
+        );
+        paintCell(row, tw + 1, 1, gutterTagsList());
         continue;
       }
       const isAll = label === "all";
@@ -910,10 +967,11 @@ export async function runRawTui(
       const text = padEndWidth(` ${mark} ${label}`, tw);
       let cell: string;
       if (sel) cell = fgBg(theme.selectFg, theme.selectBg, text);
-      else if (active) cell = fg(theme.accent, text);
-      else cell = fg(theme.dim, text);
+      else if (active)
+        cell = fgOn(theme.surface, theme.accent, text);
+      else cell = fgOn(theme.surface, theme.dim, text);
       paintCell(row, 1, tw, cell);
-      paintCell(row, tw + 1, 1, fg(theme.border, "│"));
+      paintCell(row, tw + 1, 1, gutterTagsList());
     }
   }
 
@@ -923,7 +981,7 @@ export async function runRawTui(
    *   2. Soft · between sections (not heavy │ walls)
    *   3. Quiet section tags (dim chips)
    *   4. Bright keys, softer word hints
-   *   5. Right status cluster (pos / sel / del / refresh)
+   *   5. Right status cluster (pos / sel / del)
    */
   function paintBrand(): void {
     const soft = fg(theme.brandSep, "  ·  ");
@@ -950,9 +1008,6 @@ export async function runRawTui(
       rightBits.push(
         fgBg(theme.pill.missingFg, theme.pill.missingBg, ` del ${pendingDelete.size} `),
       );
-    if (options.reload) {
-      rightBits.push(hint("↻8s"));
-    }
     const right = " " + rightBits.join(" ") + " ";
     const rightW = visWidth(right);
     const budget = Math.max(20, layout.cols - rightW);
@@ -1505,12 +1560,20 @@ export async function runRawTui(
 
     if (L.split) {
       for (let i = 0; i < L.page; i++) {
+        const raw = body[i];
+        const innerCell =
+          raw != null && raw !== ""
+            ? padAnsi(raw, Math.max(0, dw - 1))
+            : fgOn(
+                theme.surface,
+                theme.surface,
+                " ".repeat(Math.max(0, dw - 1)),
+              );
         paintCell(
           L.rowDetail0 + i,
           col,
           dw,
-          padAnsi(body[i] ?? "", Math.max(0, dw - 1)) +
-            fg(theme.border, "│"),
+          innerCell + fg(theme.border, "│"),
         );
       }
     } else {
@@ -1873,13 +1936,14 @@ export async function runRawTui(
   function paintDetailHeader(): void {
     if (!layout.split) return;
     const label = detailHeaderLabel();
-    const headColor =
-      focusPane === "detail" ? theme.title : theme.accent;
+    const focused = focusPane === "detail";
+    const headFg = focused ? theme.title : theme.headerFg;
+    const headBg = focused ? theme.brandNameBg : theme.headerBg;
     paintCell(
       layout.rowColHead,
       layout.detailCol,
       layout.detailW,
-      fg(headColor, padEndWidth(label, layout.detailW - 1)) +
+      fgBg(headFg, headBg, padEndWidth(label, layout.detailW - 1)) +
         fg(theme.border, "│"),
     );
   }
@@ -1904,7 +1968,7 @@ export async function runRawTui(
           layout.rowColHead,
           layout.listCol + layout.listW,
           1,
-          fg(theme.border, "│"),
+          gutterListDetail(),
         );
         paintDetailHeader();
       }
@@ -2006,7 +2070,7 @@ export async function runRawTui(
         layout.rowColHead,
         layout.listCol + layout.listW,
         1,
-        fg(theme.border, "│"),
+        gutterListDetail(),
       );
       paintDetailHeader();
       paintRule(layout.rowRuleHead, "head");

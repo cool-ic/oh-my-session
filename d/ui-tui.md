@@ -32,7 +32,7 @@
 仅当 `/` 搜索或 `yy` 复制命令后，才出现 **1 行**瞬时 chrome。
 
 ```
-脑门  oh-my-sessions  · 快捷键  ·  1/84
+脑门  oh-my-session  · 快捷键  ·  1/84
 ════════════════════════════════╤════════════════  ← 脑门/表格（双线）
   状态 来源 多久 条数 标题 目录 │ 详情
 ────────────────────────────────┼────────────────  ← 表头/数据
@@ -87,14 +87,14 @@ gutter 列画 │；表头行接缝用 ┬
 5. 组间宽松 `  ·  `（`brandSep`），不用厚重 `│`  
 
 ```
-▌oh-my-sessions  ·  [ move ] ↑↓  ·  [ row ] Space select · i rename · dd delete  ·  …     [1/N] [sel] [del] ↻8s
+▌oh-my-session  ·  [ move ] ↑↓  ·  [ row ] Space select · i rename · dd delete  ·  …     [1/N] [sel] [del]
 ```
 
 - **`yy` = copy resume command to clipboard**；**`/` = search filter**  
-- 右侧计数 pill + **`↻8s`** = 自动刷新间隔  
+- 右侧计数 pill（`1/N` · 可选 `sel` / `del`）；**不**再显示 `↻8s`  
 - 窄终端自动降级  
 
-**自动刷新：** 每 8s `reload()` 重扫盘；rename / `:` / `/` 输入中跳过；按 `source:id` 保光标与片选。
+**自动刷新：** 后台每 8s `reload()` 重扫盘（界面不展示）；rename / `:` / `/` 输入中跳过；按 `source:id` 保光标与片选。
 
 ---
 

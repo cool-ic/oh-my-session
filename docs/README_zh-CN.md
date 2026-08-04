@@ -1,14 +1,20 @@
 <div align="center">
 
-# oh-my-sessions
+# oh-my-session
 
 **一份本机 AI coding 会话的文件管理器 —— 尤其是那些还没做完的。**
 
+[![npm](https://img.shields.io/npm/v/oh-my-session.svg)](https://www.npmjs.com/package/oh-my-session)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](../LICENSE)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6.svg)](https://www.typescriptlang.org/)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20WSL-lightgrey.svg)](#)
-[![GitHub stars](https://img.shields.io/github/stars/cool-ic/oh-my-sessions?style=social)](https://github.com/cool-ic/oh-my-sessions)
+[![GitHub stars](https://img.shields.io/github/stars/cool-ic/oh-my-session?style=social)](https://github.com/cool-ic/oh-my-session)
+
+```bash
+npm install -g oh-my-session
+oms
+```
 
 [English](../README.md) · **简体中文**
 
@@ -25,13 +31,13 @@
 session id —— 还有 Agent 当时加载的是哪个仓库、它已经定位到了哪个 bug、你已经跟它
 解释过哪些约束，以及那个等着继续的半成品改动。
 
-`oh-my-sessions` 不会替你记住这些工作。它保证这份记录还在，并且你能在一个地方重新
+`oh-my-session` 不会替你记住这些工作。它保证这份记录还在，并且你能在一个地方重新
 找到它：跨 Agent 搜索，重命名 / 打标 / 星标你在意的，预览对话，然后在你准备继续时
 复制出完全正确的 resume 命令。
 
 > **你的 Agent 会按时间自动删掉这些记录。** Claude Code 默认删除 30 天未使用的
 > 会话，而且它无法真正关闭，只能把期限推远（它自己的 schema 拒绝 `0`）。Qoder 也有
-> 类似的清理设置。运行 `:retention`，oh-my-sessions 会把要改的配置给你看，确认后
+> 类似的清理设置。运行 `:retention`，oh-my-session 会把要改的配置给你看，确认后
 > 帮你改好。
 
 ---
@@ -56,7 +62,7 @@ session id —— 还有 Agent 当时加载的是哪个仓库、它已经定位�
 
 你往往不只用一个编程 Agent。它们各自把会话丢在不同目录，续跑规则也不同。一周后你会面临：
 
-| 问题 | 没有本工具 | 用 **oh-my-sessions** |
+| 问题 | 没有本工具 | 用 **oh-my-session** |
 |------|------------|------------------------|
 | 还有哪些会话？ | 翻 `~/.grok`、`~/.qoder`、`~/.claude` | 一张按活跃时间排序的表 |
 | 还能不能续跑？ | 试了才知道 | **OK / Empty / Missing** 徽章 |
@@ -91,21 +97,21 @@ session id —— 还有 Agent 当时加载的是哪个仓库、它已经定位�
 ### 安装并运行
 
 ```bash
-npm install -g oh-my-sessions
+npm install -g oh-my-session
 oms
 ```
 
 也可以不全局安装，直接试用：
 
 ```bash
-npx oh-my-sessions
+npx oh-my-session
 ```
 
 ### 从源码运行
 
 ```bash
-git clone https://github.com/cool-ic/oh-my-sessions.git
-cd oh-my-sessions
+git clone https://github.com/cool-ic/oh-my-session.git
+cd oh-my-session
 npm install
 npm start
 ```
@@ -241,7 +247,7 @@ oms --help
 - [ ] 导出所选会话元数据
 - [ ] 主题预设
 
-欢迎提 Issue / PR： [github.com/cool-ic/oh-my-sessions](https://github.com/cool-ic/oh-my-sessions)。
+欢迎提 Issue / PR： [github.com/cool-ic/oh-my-session](https://github.com/cool-ic/oh-my-session)。
 
 ---
 
@@ -265,6 +271,10 @@ oms --help
 
 <div align="center">
 
-**别再翻 `~/.agent` 目录了。直接 `npm start`。**
+**别再翻 `~/.agent` 目录了。**
+
+```bash
+npm install -g oh-my-session && oms
+```
 
 </div>

@@ -1,6 +1,6 @@
 # workflow.md · 过程权威
 
-> 本文件是 `oh-my-sessions` 的**过程唯一权威**。  
+> 本文件是 `oh-my-session` 的**过程唯一权威**。  
 > 与总纲领冲突时，以本文「怎么做」为准；「能不能做」以 `d/constraints.md` 为准。
 
 ---

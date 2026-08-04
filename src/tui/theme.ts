@@ -1,110 +1,112 @@
 /**
- * Light professional palette for the session table TUI:
- *   - cool paper canvas (not pure white glare)
- *   - near-black body text, slate secondary
- *   - amber/gold selection row (same product identity as before, readable on light)
- *   - soft status pills and chat cards
- *   - green only as a quiet “ok / accent” note
+ * Light “studio paper” palette — calm, high clarity, low chrome noise.
+ *
+ * Hierarchy:
+ *   canvas < surface/zebra < header chips < selection amber
+ *   text > dim > meta > line/border
+ *   accent green only for OK / active marks
+ *   selection keeps column roles (pill / source / meta) on gold wash
  */
 export const theme = {
-  /**
-   * Full-screen canvas (we paint this ourselves).
-   * Soft cool gray — easier on the eyes than #FFF.
-   */
-  canvas: "#F0F2F5",
+  /** App background */
+  canvas: "#F6F7F9",
+  /** Slightly lifted panels (tags empty, detail empty) */
+  surface: "#EEF0F4",
+  /** Alternating list rows (very soft) */
+  zebra: "#EBEDF2",
+  /** Column / pane headers — quiet labels, not competing with data */
+  headerBg: "#E4E7EE",
+  headerFg: "#7A8494",
 
-  /** Quiet accent (ok ticks, small chrome) — not the selection color */
-  accent: "#1B7A45",
+  /** Quiet accent (ok, active tag) */
+  accent: "#1A7F4B",
   /** Primary headings */
-  title: "#11141A",
-  /** Body / IDs / commands */
-  text: "#1C212B",
-  /** Secondary (age, path, hints) */
-  dim: "#5C6570",
-  line: "#D8DCE3",
-  border: "#B8BFC9",
+  title: "#0E1116",
+  /** Body */
+  text: "#1A1F28",
+  /** Secondary (paths when emphasized, brand hints) */
+  dim: "#6A7380",
+  /** Tertiary meta (age, msgs, empty star) — quieter scan texture */
+  meta: "#9AA3B0",
+  line: "#E0E3E9",
+  border: "#C9CED6",
 
-  ok: "#1B7A45",
-  /** Light ink when painting on solid `ok` (e.g. success title bar) */
-  onOk: "#F4F7F5",
+  ok: "#1A7F4B",
+  onOk: "#F3FBF6",
   empty: "#6B7280",
-  missing: "#C45C2A",
+  missing: "#C24B1F",
 
-  /** Selection — warm amber bar, dark ink (readable on light canvas) */
+  /** Selection — soft gold, not neon */
   cursor: "#1A1608",
-  cursorBar: "#C9A227",
-  selectBg: "#E8C04A",
+  cursorBar: "#C4A035",
+  selectBg: "#F0D36A",
   selectFg: "#1A1608",
 
-  /** Multi-select — pale amber wash */
-  multiBg: "#F3E4B8",
+  /** Multi-select wash */
+  multiBg: "#F6E8B8",
   multiFg: "#2A2410",
-  multiMark: "#B8921E",
+  multiMark: "#B08A18",
 
-  /** Stars: filled * / empty · */
-  star: "#B8921E",
-  starEmpty: "#9AA3B0",
+  /** Stars */
+  star: "#B08A18",
+  /** Empty mark — near-zebra so it doesn't steal STATUS */
+  starEmpty: "#B8BEC8",
 
-  /** Inline rename — same family as selection */
-  editBg: "#E8C04A",
+  editBg: "#F0D36A",
   editFg: "#1A1608",
 
   warn: "#B45309",
-  action: "#B8921E",
-  panelBg: "#E8EAEE",
+  action: "#B08A18",
+  panelBg: "#EEF0F4",
 
-  /** Brand bar — soft slate chip, dark label */
-  brandNameBg: "#DDE3EE",
-  brandNameFg: "#12161E",
-  brandTagBg: "#E6E9EF",
-  brandTagFg: "#4B5563",
+  /** Brand chrome */
+  brandNameBg: "#D8DEEA",
+  brandNameFg: "#10141C",
+  brandTagBg: "#E8EBEF",
+  brandTagFg: "#4A5563",
   brandSep: "#C5CAD3",
-  brandKey: "#9A7410",
-  brandHint: "#6B7280",
+  brandKey: "#8F6B0F",
+  brandHint: "#6A7380",
 
   source: {
-    all: "#1C212B",
-    grok: "#1B7A45",
-    qoder: "#1D6FA5",
-    claude: "#A65D1F",
+    all: "#1A1F28",
+    grok: "#1A7F4B",
+    qoder: "#1A6FA3",
+    claude: "#A35A1C",
     codex: "#4B5563",
     cursor: "#374151",
   } as Record<string, string>,
 
   pill: {
-    okBg: "#D8F0E0",
+    okBg: "#D5F0E0",
     okFg: "#14532D",
-    emptyBg: "#E5E7EB",
-    emptyFg: "#374151",
-    missingBg: "#FDE8DC",
+    emptyBg: "#E6E8EC",
+    emptyFg: "#3D4450",
+    missingBg: "#FCE4D6",
     missingFg: "#9A3412",
   },
 
-  /**
-   * Chat message list — light cards with subtle role tint.
-   * Agent: mint; You: sky; tool/think: warm / slate.
-   */
   chat: {
     headerFg: "#5C6570",
-    headerBg: "#E8EAEE",
-    headerAccent: "#9A7410",
+    headerBg: "#E4E7EE",
+    headerAccent: "#8F6B0F",
     agentName: "#14532D",
-    agentBar: "#2F9E5B",
-    agentBg: "#E8F5EC",
-    agentText: "#1C212B",
-    userName: "#1E4A6E",
+    agentBar: "#2D9A58",
+    agentBg: "#E6F5EC",
+    agentText: "#1A1F28",
+    userName: "#1A4A6E",
     userBar: "#3B82A8",
-    userBg: "#E7F1F8",
-    userText: "#1C212B",
+    userBg: "#E6F1F8",
+    userText: "#1A1F28",
     toolName: "#7A5A10",
-    toolBar: "#B8921E",
-    toolBg: "#F7F0DC",
+    toolBar: "#B08A18",
+    toolBg: "#F6F0DC",
     toolText: "#2A2410",
     thinkName: "#5C6570",
     thinkBar: "#9AA3B0",
     thinkBg: "#EBEDF0",
     thinkText: "#4B5563",
     timeFg: "#7A8494",
-    sep: "#D8DCE3",
+    sep: "#E0E3E9",
   },
 } as const;
