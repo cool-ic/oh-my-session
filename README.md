@@ -1,24 +1,18 @@
-<div align="center">
-
 # oh-my-session
 
 **A local file manager for the AI coding sessions you haven't finished.**
 
-[![npm](https://img.shields.io/npm/v/oh-my-session.svg)](https://www.npmjs.com/package/oh-my-session)
+[![npm](https://img.shields.io/badge/npm-oh--my--session-cb3837)](https://www.npmjs.com/package/oh-my-session)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6.svg)](https://www.typescriptlang.org/)
-[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20WSL-lightgrey.svg)](#)
-[![GitHub stars](https://img.shields.io/github/stars/cool-ic/oh-my-session?style=social)](https://github.com/cool-ic/oh-my-session)
+
+**English** · [中文速览](./docs/README_zh-CN.md)
 
 ```bash
 npm install -g oh-my-session
 oms
 ```
-
-**English** · [中文速览](./docs/README_zh-CN.md)
-
-</div>
 
 Every Qoder, Claude Code, or Grok session is a workbench: a repo path, a trail of
 decisions, a half-built mental model, and sometimes a fix that was almost done.
@@ -290,12 +284,10 @@ Issues and PRs welcome: [github.com/cool-ic/oh-my-session](https://github.com/co
 
 ---
 
-<div align="center">
+---
 
 **Stop hunting through `~/.agent` folders.**
 
 ```bash
 npm install -g oh-my-session && oms
 ```
-
-</div>

@@ -1,28 +1,20 @@
-<div align="center">
-
 # oh-my-session
 
 **一份本机 AI coding 会话的文件管理器 —— 尤其是那些还没做完的。**
 
-[![npm](https://img.shields.io/npm/v/oh-my-session.svg)](https://www.npmjs.com/package/oh-my-session)
+统一列举、查看、打标、清理 **Grok Build**、**Qoder**、**Claude Code** 等本地会话：续跑命令、健康状态、只读对话回看。
+
+[![npm](https://img.shields.io/badge/npm-oh--my--session-cb3837)](https://www.npmjs.com/package/oh-my-session)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](../LICENSE)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6.svg)](https://www.typescriptlang.org/)
-[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20WSL-lightgrey.svg)](#)
-[![GitHub stars](https://img.shields.io/github/stars/cool-ic/oh-my-session?style=social)](https://github.com/cool-ic/oh-my-session)
+
+[English](../README.md) · **简体中文**
 
 ```bash
 npm install -g oh-my-session
 oms
 ```
-
-[English](../README.md) · **简体中文**
-
-<br/>
-
-统一列举、查看、打标、清理 **Grok Build**、**Qoder**、**Claude Code** 等本地会话：续跑命令、健康状态、只读对话回看。
-
-</div>
 
 每一个 Qoder / Claude Code / Grok 会话都是一个"工作现场"：一个仓库路径、一串决策、
 一个搭了一半的心智模型，有时还有一个差一点就改好的修复。
@@ -269,12 +261,10 @@ oms --help
 
 ---
 
-<div align="center">
+---
 
 **别再翻 `~/.agent` 目录了。**
 
 ```bash
 npm install -g oh-my-session && oms
 ```
-
-</div>
