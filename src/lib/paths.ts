@@ -1,6 +1,5 @@
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 export function expandHome(p: string, home = os.homedir()): string {
   if (p === "~") return home;
@@ -9,15 +8,20 @@ export function expandHome(p: string, home = os.homedir()): string {
 }
 
 /**
- * Where the local CSV stores (titles / stars / tags) live.
- * Defaults to `<repo>/data`; `OMS_DATA_DIR` redirects it so demo fixtures and
- * tests cannot clobber the user's own overrides.
+ * User settings directory (titles / stars / tags / locale / prefs / update cache).
+ *
+ * Default for everyone: `~/.config/oms`.
+ * Optional override: `OMS_DATA_DIR` (advanced / tooling only).
+ * If `XDG_CONFIG_HOME` is set, uses `$XDG_CONFIG_HOME/oms` instead of `~/.config/oms`.
  */
 export function dataDir(): string {
   const override = process.env.OMS_DATA_DIR;
   if (override && override.trim()) return expandHome(override.trim());
-  const here = path.dirname(fileURLToPath(import.meta.url));
-  return path.join(path.resolve(here, "../.."), "data");
+  const xdg = process.env.XDG_CONFIG_HOME?.trim();
+  const configHome = xdg
+    ? expandHome(xdg)
+    : path.join(os.homedir(), ".config");
+  return path.join(configHome, "oms");
 }
 
 export function grokHome(home = os.homedir()): string {

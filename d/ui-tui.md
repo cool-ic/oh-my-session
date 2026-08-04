@@ -183,7 +183,7 @@ gutter 列画 │；表头行接缝用 ┬
 | `:feedback` | `:fb` · `:github` · `:issues` | 用系统浏览器打开本仓库 GitHub（反馈 / Issue） |
 | `:help` | `:h` · `:?` | 快捷键帮助浮层 |
 
-**语言（首次启动）：** 若 `data/ui-locale` 不存在 → **阻塞弹窗**选 `1` English / `2` 简体中文（禁 Esc）；写入 `data/ui-locale`（`en`|`zh`）后继续（再视情况出 retention 弹窗）。之后可用 `:lang` 重开。
+**语言（首次启动）：** 若 `~/.config/oms/ui-locale` 不存在 → **阻塞弹窗**选 `1` English / `2` 简体中文（禁 Esc）；写入该文件（`en`|`zh`）后继续（再视情况出 retention 弹窗）。之后可用 `:lang` 重开。
 
 **片选语义：** `Space` 只切换勾选，不删。勾选集合跨筛选保留（按 `source:id`）；`dd` 对勾选集合批量标记删除后清空勾选。
 
@@ -196,15 +196,22 @@ gutter 列画 │；表头行接缝用 ┬
 
 **删除语义：** `dd` 只标记；`:wq` 调用 `lib/delete-session.ts` 删 Grok 会话目录 / Qoder jsonl+meta+dir 等。详见 constraints。
 
-**Rename 语义（`i`）：** 立即写入本仓库 CSV，不经过 `:wq`，**不**改 Agent 原生存储。
+**Rename 语义（`i`）：** 立即写入 `~/.config/oms/` 下 CSV，不经过 `:wq`，**不**改 Agent 原生存储。
 
-**Retention 语义（TUI 弹窗 / `:retention`）：** 启动时若有 atRisk 且未 ignore 的 agent → **阻塞弹窗**（`y` 改配 · `i` 知情不改并写入 `data/retention-prefs.csv`，此后该 agent 不再弹，footer 提示可 `:retention` 反悔）。`:retention` 可随时打开（决策 / 状态 / `u` unignore）。改配成功另有结果弹窗。详见 constraints §1.3。
-| 位置 | 格式 |
-|------|------|
-| `data/session-titles.csv` | `source,id,title,updated_at`（逗号/引号按 RFC4180） |
-| `data/ui-locale` | 单行 `en` 或 `zh`（gitignore） |
+**Retention 语义（TUI 弹窗 / `:retention`）：** 启动时若有 atRisk 且未 ignore 的 agent → **阻塞弹窗**（`y` 改配 · `i` 知情不改并写入 `~/.config/oms/retention-prefs.csv`，此后该 agent 不再弹，footer 提示可 `:retention` 反悔）。`:retention` 可随时打开（决策 / 状态 / `u` unignore）。改配成功另有结果弹窗。详见 constraints §1.3。
 
-discover 后 `applyTitleOverrides()` 用 CSV 覆盖展示标题。个人 CSV 默认 **gitignore**。
+用户数据目录默认 **`~/.config/oms/`**（`$OMS_DATA_DIR` 或 `$XDG_CONFIG_HOME/oms` 可覆盖）：
+
+| 文件 | 格式 / 说明 |
+|------|-------------|
+| `session-titles.csv` | `source,id,title,updated_at`（RFC4180） |
+| `session-stars.csv` | 置顶 |
+| `session-tags.csv` | 标签 |
+| `retention-prefs.csv` | 保留期 ignore 偏好 |
+| `ui-locale` | 单行 `en` 或 `zh` |
+| `update-check.json` | npm 更新检查缓存 |
+
+discover 后 `applyTitleOverrides()` 用 CSV 覆盖展示标题。
 
 编辑中：TITLE 列内联；**Esc** / **Enter** 保留并写 CSV；空标题退出不改。
 

@@ -1,7 +1,7 @@
 /**
  * Local star flags for sessions — CSV in this repo.
  *
- * File: <repo>/data/session-stars.csv
+ * File: ~/.config/oms/session-stars.csv (or $OMS_DATA_DIR)
  * Columns: source,id,starred_at
  *
  * Starred sessions pin to top of the TUI list and cannot be dd-deleted

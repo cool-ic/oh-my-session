@@ -391,10 +391,10 @@ export function helpGroups(): ReadonlyArray<{
       {
         title: t("help.g.notes"),
         keys: [
-          ["标题", "data/session-titles.csv（本机）"],
-          ["置顶", "data/session-stars.csv — 置顶且不可 dd"],
-          ["标签", "data/session-tags.csv — 每会话一个"],
-          ["语言", "data/ui-locale — en / zh"],
+          ["标题", "~/.config/oms/session-titles.csv"],
+          ["置顶", "~/.config/oms/session-stars.csv — 置顶且不可 dd"],
+          ["标签", "~/.config/oms/session-tags.csv — 每会话一个"],
+          ["语言", "~/.config/oms/ui-locale — en / zh"],
           ["刷新", "后台每 8s 重扫（界面不显示）"],
         ],
       },
@@ -476,10 +476,10 @@ export function helpGroups(): ReadonlyArray<{
     {
       title: t("help.g.notes"),
       keys: [
-        ["Titles", "data/session-titles.csv (local)"],
-        ["Stars", "data/session-stars.csv — pin + no dd"],
-        ["Tags", "data/session-tags.csv — one tag per session"],
-        ["Language", "data/ui-locale — en / zh"],
+        ["Titles", "~/.config/oms/session-titles.csv"],
+        ["Stars", "~/.config/oms/session-stars.csv — pin + no dd"],
+        ["Tags", "~/.config/oms/session-tags.csv — one tag per session"],
+        ["Language", "~/.config/oms/ui-locale — en / zh"],
         ["Refresh", "Background re-scan every 8s (not shown in chrome)"],
       ],
     },

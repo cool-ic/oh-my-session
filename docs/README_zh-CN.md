@@ -64,7 +64,7 @@ Agent 还会**偷偷删旧会话**（Claude 默认约 30 天）。用 `:retentio
 - **Shell 补全** — `oms completion bash|zsh|fish`
 - **本地整理** — 重命名（`i`）、置顶（`*`）、分配标签（`t`）— **绝不改写**各 Agent 原生存储
 - **保留期检查** — 发现 Agent 正在自动删除旧会话时给出提示；`:retention` 确认后一键改配（并留 `.bak`）
-- **默认隐私** — 标题 / 星标 / 标签写在 gitignore 的 `data/*.csv`
+- **默认隐私** — 标题 / 星标 / 标签等写在 `~/.config/oms/`
 - **自动刷新** — 空闲时每 8 秒重扫磁盘
 - **可脚本化** — `--list` / `--json` 便于管道与自动化
 
@@ -127,7 +127,7 @@ oms completion fish > ~/.config/fish/completions/oms.fish
 ### 版本更新
 
 启动 / `--list` 时若缓存发现有新版本，会在 TUI 状态栏或 stderr 提醒。
-缓存文件：`data/update-check.json`（24 小时）。
+缓存文件：`~/.config/oms/update-check.json`（24 小时）。
 
 ```bash
 npm install -g oh-my-session@latest   # 与 oms upgrade 给出的命令相同
@@ -198,21 +198,23 @@ OMS_NO_UPDATE=1 oms                    # 关闭检查与提示
 
 ---
 
-## 本地设置（CSV）
+## 本地设置（`~/.config/oms/`）
 
-偏好**仅存本地** — 不会回写 Grok / Qoder / Claude 的原生库。
+安装后，**你的**标签、重命名、置顶、语言等全部在这里：
 
-| 功能 | 文件 | 说明 |
-|------|------|------|
-| 重命名（`i`） | `data/session-titles.csv` | `source,id,title,updated_at` |
-| 星标（`*`） | `data/session-stars.csv` | 置顶 + 保护不被 `dd` |
-| 标签（`t`） | `data/session-tags.csv` | 一会话一个标签 |
-| 界面语言 | `data/ui-locale` | `en` 或 `zh`（首次启动询问） |
-| 更新检查 | `data/update-check.json` | 缓存的 npm 最新版（24h；非个人数据） |
+```text
+~/.config/oms/
+├── session-titles.csv    # 重命名（i）
+├── session-stars.csv     # 置顶（*）
+├── session-tags.csv      # 标签（t）
+├── ui-locale             # en | zh
+├── retention-prefs.csv   # 保留期「已知情」
+└── update-check.json     # 新版本提醒缓存（可选）
+```
 
-这些路径在 **.gitignore** 中。可自行私密备份，不会随仓库公开。
+不会写进 Grok / Qoder / Claude 自己的目录。可自行备份；`npm update -g` 也不会清掉。
 
-仅运行时内存（不落盘）：搜索筛选、片选、滚动、是否打开聊天。
+仅运行时内存（不落盘）：搜索、片选、滚动、是否打开聊天。
 
 ---
 
@@ -249,7 +251,7 @@ OMS_NO_UPDATE=1 oms                    # 关闭检查与提示
 | `GROK_HOME` | Grok 数据根目录 |
 | `QODER_CONFIG_DIR` | Qoder 配置目录覆盖（默认 `~/.qoder`） |
 | `CLAUDE_CONFIG_DIR` | Claude 配置目录覆盖 |
-| `OMS_DATA_DIR` | 标题 / 星标 / 标签 CSV 的存放目录（默认 `<repo>/data`） |
+| `OMS_DATA_DIR` | 少用：改设置目录（默认就是 `~/.config/oms`） |
 
 ---
 

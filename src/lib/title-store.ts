@@ -1,7 +1,7 @@
 /**
  * Local title overrides for sessions — CSV in this repo (stable, agent-agnostic).
  *
- * File: <repo>/data/session-titles.csv
+ * File: ~/.config/oms/session-titles.csv (or $OMS_DATA_DIR)
  * Columns: source,id,title,updated_at
  *
  * This is the authority for renames done in this TUI (i). We do not patch

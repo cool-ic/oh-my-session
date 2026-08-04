@@ -1,7 +1,7 @@
 /**
  * Single tag per session (= group). CSV in this repo.
  *
- * data/session-tags.csv: source,id,tag,updated_at
+ * ~/.config/oms/session-tags.csv: source,id,tag,updated_at
  */
 import fs from "node:fs";
 import path from "node:path";

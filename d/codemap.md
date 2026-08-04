@@ -35,15 +35,15 @@ oh-my-session/
       format.ts               # --list 表、resumeInfo/resumeHint
       delete-session.ts       # :wq 时真正删盘
       rename-session.ts       # i rename → title-store CSV
-      title-store.ts          # data/session-titles.csv 读写
-      star-store.ts           # data/session-stars.csv；置顶 + 禁 dd
-      tag-store.ts            # data/session-tags.csv；一会话一 tag
+      title-store.ts          # ~/.config/oms/session-titles.csv 读写
+      star-store.ts           # session-stars.csv；置顶 + 禁 dd
+      tag-store.ts            # session-tags.csv；一会话一 tag
       transcript.ts           # Enter 聊天：近→远 user/assistant
       retention.ts            # 保留期体检 + fix config（Grok toml / Qoder+Claude json）
-      retention-prefs.ts      # 用户级 ignore 偏好 data/retention-prefs.csv
+      retention-prefs.ts      # 用户级 ignore 偏好 retention-prefs.csv
       time.ts                 # formatAge 2s|30m|5d|1mo
       width.ts                # CJK 显示宽 / pad / truncate
-      paths.ts                # QODER_CONFIG_DIR / GROK_HOME 等
+      paths.ts                # dataDir (~/.config/oms) · QODER/GROK/CLAUDE homes
       fsutil.ts               # 只读 fs
       jsonl-text.ts           # jsonl content → 纯文本
     tui/

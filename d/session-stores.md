@@ -209,7 +209,7 @@ user 的 `message.content` 可能是 **string 或 content-block 数组**（须 `
 
 ## 本工具标题覆盖（Rename 权威）
 
-路径：`<repo>/data/session-titles.csv`（默认 gitignore，仅本机）
+路径：`~/.config/oms/session-titles.csv`（或 `$OMS_DATA_DIR`，仅本机）
 
 ```csv
 source,id,title,updated_at
@@ -229,7 +229,7 @@ claude,aaaaaaaa-bbbb-…,Other,2026-07-31T12:01:00.000Z
 
 ## 本工具星标（Star）
 
-路径：`<repo>/data/session-stars.csv`（gitignore）
+路径：`~/.config/oms/session-stars.csv`
 
 | 规则 | 行为 |
 |------|------|
@@ -242,7 +242,7 @@ claude,aaaaaaaa-bbbb-…,Other,2026-07-31T12:01:00.000Z
 
 ## 本工具 Tag（单值分组）
 
-路径：`<repo>/data/session-tags.csv`（gitignore）
+路径：`~/.config/oms/session-tags.csv`
 
 ```csv
 source,id,tag,updated_at

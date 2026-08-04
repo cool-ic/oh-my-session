@@ -1,7 +1,7 @@
 /**
  * Rename session display title.
  *
- * Stored in this repo as CSV (data/session-titles.csv) — stable and independent
+ * Stored as CSV (~/.config/oms/session-titles.csv) — stable and independent
  * of Grok / Claude / Qoder native formats that agents may overwrite.
  */
 import type { SessionRecord } from "../types.js";

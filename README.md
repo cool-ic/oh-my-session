@@ -64,7 +64,7 @@ You use more than one coding agent. Each dumps sessions into a different home di
 - **Shell completion** — `oms completion bash|zsh|fish`
 - **Organize locally** — rename (`i`), star (`*`), tag (`t`) — **never rewrites agent stores**
 - **Retention check** — warns when an agent is set to auto-delete old sessions; `:retention` applies the config for you (asks first, keeps a `.bak`)
-- **Private by default** — titles / stars / tags live in gitignored CSV under `data/`
+- **Private by default** — titles / stars / tags live under `~/.config/oms/`
 - **Auto refresh** — re-scans disk every 8s while idle
 - **Scriptable** — `--list` / `--json` for pipes and automation
 
@@ -127,7 +127,7 @@ oms completion fish > ~/.config/fish/completions/oms.fish
 ### Updates
 
 On launch / `--list`, a **cached** npm check may remind you when a newer release exists
-(footer in the TUI, stderr for tables). Cache lives under `data/update-check.json` (24h).
+(footer in the TUI, stderr for tables). Cache lives under `~/.config/oms/update-check.json` (24h).
 
 ```bash
 npm install -g oh-my-session@latest   # same as: oms upgrade
@@ -198,21 +198,23 @@ Full spec: [`d/ui-tui.md`](./d/ui-tui.md) · in-app `:help`.
 
 ---
 
-## Local settings (CSV)
+## Local settings (`~/.config/oms/`)
 
-Preferences are **local only** — they never patch Grok / Qoder / Claude stores.
+After install, **your** tags, renames, stars, language, etc. all live here:
 
-| Feature | File | Notes |
-|---------|------|--------|
-| Rename (`i`) | `data/session-titles.csv` | `source,id,title,updated_at` |
-| Star (`*`) | `data/session-stars.csv` | Pin + protect from `dd` |
-| Tag (`t`) | `data/session-tags.csv` | One tag per session |
-| Language | `data/ui-locale` | `en` or `zh` (first-run prompt) |
-| Update check | `data/update-check.json` | Cached npm latest (24h); not personal data |
+```text
+~/.config/oms/
+├── session-titles.csv    # rename (i)
+├── session-stars.csv     # pin (*)
+├── session-tags.csv      # tag (t)
+├── ui-locale             # en | zh
+├── retention-prefs.csv   # retention “I know” choices
+└── update-check.json     # optional update reminder cache
+```
 
-These paths are **gitignored**. Safe to back up privately; not published with the repo.
+Nothing here is written into Grok / Qoder / Claude’s own stores. Safe to back up; survives `npm update -g`.
 
-Runtime-only (not persisted): search filters, multi-select, scroll, open chat.
+Runtime-only (not on disk): search, multi-select, scroll, open chat.
 
 ---
 
@@ -272,7 +274,7 @@ oh-my-session/
 | `GROK_HOME` | Grok data root (if set by the Grok tooling) |
 | `QODER_CONFIG_DIR` | Qoder config root override (defaults to `~/.qoder`) |
 | `CLAUDE_CONFIG_DIR` | Claude config root override |
-| `OMS_DATA_DIR` | Where the local title / star / tag CSVs live (default `<repo>/data`) |
+| `OMS_DATA_DIR` | Rare: redirect settings dir (default is always `~/.config/oms`) |
 
 ---
 
