@@ -36,10 +36,18 @@ import {
 } from "../lib/transcript.js";
 import {
   auditRetention,
-  fixRetention,
+  fixRetentionFindings,
   retentionWarning,
+  type RetentionAgent,
   type RetentionFinding,
 } from "../lib/retention.js";
+import {
+  ackedRetentionRisks,
+  ignoreRetentionAgents,
+  loadRetentionPrefs,
+  pendingRetentionRisks,
+  unignoreRetentionAgents,
+} from "../lib/retention-prefs.js";
 import { sortKeyLastActive } from "../lib/time.js";
 import {
   displayWidth,
@@ -125,7 +133,10 @@ const HELP_GROUPS: ReadonlyArray<{ title: string; keys: [string, string][] }> =
         [":q", "Quit if no pending deletes"],
         [":q!", "Quit · discard pending deletes"],
         [":wq / :x", "Apply deletes and quit"],
-        [":retention", "Stop agents auto-deleting sessions (asks first)"],
+        [
+          ":retention",
+          "Retention popup: fix config / ignore risk / unignore",
+        ],
         [":help / :h / :?", "This help"],
       ],
     },
@@ -141,23 +152,42 @@ const HELP_GROUPS: ReadonlyArray<{ title: string; keys: [string, string][] }> =
   ];
 
 /**
- * Fixed column widths (display cols).
- * mark | star (padded) | gap | status | … — star not glued to STATUS.
+ * List table geometry (display columns).
+ *
+ * Layout:
+ *   mark | star | gap | STATUS | gap | SOURCE | gap | AGE | gap | MSGS
+ *        | gap | TITLE (flex) | gap | RESUME DIR (flex)
+ *
+ * Gaps are hard floors so dense fixed columns never glue together; TITLE/RESUME
+ * share remaining width with caps so TITLE does not starve the path.
  */
 const LC = {
   mark: 2, // cursor ▌ + multi *
-  star: 3, // " ★ " or "   "
-  gs: 1, // gap after star before STATUS
+  star: 3, // ★ / ☆ cell
+  /** Gaps (min floors, display cols) */
+  gs: 1, // star → STATUS (icon column, 1 is enough)
+  g1: 2, // STATUS → SOURCE
+  g2: 2, // SOURCE → AGE
+  g3: 2, // AGE → MSGS
+  g4: 2, // MSGS → TITLE  (was 1 — too tight)
+  g5: 2, // TITLE → RESUME DIR
+  /** Fixed data columns */
   status: 8,
-  g1: 1,
   source: 6,
-  g2: 1,
   age: 5,
-  g3: 1,
   msgs: 5,
-  g4: 1,
-  g5: 1,
 } as const;
+
+/** Min TITLE / RESUME DIR content widths after fixed columns + gaps. */
+const FLEX_MIN = {
+  title: 12,
+  path: 12,
+  /** title share of flex remainder (before cap) */
+  titleRatio: 0.38,
+  titleCap: 36,
+  titleCapNarrow: 40,
+} as const;
+
 const LC_FIXED =
   LC.mark +
   LC.star +
@@ -182,7 +212,7 @@ function hexRgb(hex: string): [number, number, number] {
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
-/** Default cell style: body text on our dark canvas (not terminal white). */
+/** Default cell style: body text on our painted canvas (light theme). */
 function sgrDefault(): string {
   const [fr, fg_, fb] = hexRgb(theme.text);
   const [br, bg_, bb] = hexRgb(theme.canvas);
@@ -190,8 +220,8 @@ function sgrDefault(): string {
 }
 
 /**
- * Foreground on canvas. Always pairs with canvas BG so light terminals
- * do not show pale-on-white garbage after RESET.
+ * Foreground on canvas. Always pairs with canvas BG so host terminal defaults
+ * never leak through after RESET.
  */
 function fg(hex: string, text: string): string {
   const [r, g, b] = hexRgb(hex);
@@ -358,13 +388,26 @@ function computeLayout(cols: number, rows: number): Layout {
   if (split) {
     let detailW = Math.min(40, Math.max(32, Math.floor(afterTag * 0.34)));
     let listW = afterTag - detailW - gutter;
-    if (listW < LC_FIXED + 16) {
-      listW = LC_FIXED + 16;
+    const listMin = LC_FIXED + FLEX_MIN.title + FLEX_MIN.path;
+    if (listW < listMin) {
+      listW = listMin;
       detailW = Math.max(26, afterTag - listW - gutter);
     }
-    const rest = Math.max(12, listW - LC_FIXED);
-    const titleW = Math.max(10, Math.floor(rest * 0.52));
-    const pathW = Math.max(8, rest - titleW);
+    const rest = Math.max(
+      FLEX_MIN.title + FLEX_MIN.path,
+      listW - LC_FIXED,
+    );
+    // Prefer RESUME DIR over a huge empty TITLE pad on wide terminals.
+    let titleW = Math.max(
+      FLEX_MIN.title,
+      Math.min(FLEX_MIN.titleCap, Math.floor(rest * FLEX_MIN.titleRatio)),
+    );
+    let pathW = Math.max(FLEX_MIN.path, rest - titleW);
+    // If path stole min and overshoot, shrink title but keep its floor.
+    if (titleW + pathW > rest) {
+      titleW = Math.max(FLEX_MIN.title, rest - pathW);
+      pathW = rest - titleW;
+    }
     const page = Math.max(6, rows - chrome);
     return {
       cols,
@@ -394,9 +437,16 @@ function computeLayout(cols: number, rows: number): Layout {
   const detailBox = 2 + detailBodyRows;
   const page = Math.max(5, rows - chrome - detailBox + 1);
   const listW = afterTag;
-  const rest = Math.max(12, listW - LC_FIXED);
-  const titleW = Math.max(10, Math.floor(rest * 0.55));
-  const pathW = Math.max(8, rest - titleW);
+  const rest = Math.max(FLEX_MIN.title + FLEX_MIN.path, listW - LC_FIXED);
+  let titleW = Math.max(
+    FLEX_MIN.title,
+    Math.min(FLEX_MIN.titleCapNarrow, Math.floor(rest * FLEX_MIN.titleRatio)),
+  );
+  let pathW = Math.max(FLEX_MIN.path, rest - titleW);
+  if (titleW + pathW > rest) {
+    titleW = Math.max(FLEX_MIN.title, rest - pathW);
+    pathW = rest - titleW;
+  }
   return {
     cols,
     rows,
@@ -466,14 +516,35 @@ export async function runRawTui(
   let helpMode = false;
   let helpOffset = 0;
   /**
-   * Retention audit: agents whose settings.json lets them delete transcripts.
-   * Checked once at startup; `:retention` opens a confirm overlay that writes.
+   * Retention TUI popup:
+   *  - decision: at-risk agents not yet ignored → y fix / i ignore (startup blocks)
+   *  - done: after fix — show results
+   *  - review: status panel from :retention (safe / ignored / unignore)
    */
-  let retentionFindings: RetentionFinding[] = auditRetention();
-  let retentionRisky = retentionFindings.filter((f) => f.atRisk);
-  /** Confirm overlay for writing settings.json — null = closed */
-  let retentionMode: null | "confirm" | "done" = null;
+  let retentionFindings: RetentionFinding[] = [];
+  /** atRisk ∩ ¬ignored — needs a decision */
+  let retentionPending: RetentionFinding[] = [];
+  /** atRisk ∩ ignored — weak footer only */
+  let retentionAcked: RetentionFinding[] = [];
+  let retentionMode: null | "decision" | "done" | "review" = null;
+  /** Startup auto-open: must choose y or i (Esc disabled). */
+  let retentionBlocking = false;
   let retentionResultLines: string[] = [];
+  /** Session-local success strip after fix. */
+  let retentionJustFixed: RetentionAgent[] = [];
+
+  function syncRetentionState(): void {
+    retentionFindings = auditRetention();
+    const prefs = loadRetentionPrefs();
+    retentionPending = pendingRetentionRisks(retentionFindings, prefs);
+    retentionAcked = ackedRetentionRisks(retentionFindings, prefs);
+  }
+
+  syncRetentionState();
+  if (retentionPending.length > 0) {
+    retentionMode = "decision";
+    retentionBlocking = true;
+  }
   /**
    * Detail panel: meta | chat list (1-line previews) | expanded full message.
    * Session Enter → list; list Enter → full; Esc full→list→sessions.
@@ -1505,38 +1576,97 @@ export async function runRawTui(
   }
 
   /**
-   * Retention overlay: what will change, then the result. Explicit y/n because
-   * this writes to the user's agent config (see lib/retention.ts).
+   * Full-screen retention popup (modal over the main table).
+   * decision = choose fix vs ignore; done = fix results; review = status / unignore.
    */
   function buildRetentionLines(): string[] {
     const lines: string[] = [];
     if (retentionMode === "done") {
-      lines.push("Session retention — applied");
+      lines.push("✓  Retention updated");
       lines.push("");
       lines.push(...retentionResultLines);
       lines.push("");
-      lines.push("Restart the agent for the new setting to take effect.");
+      lines.push("Restart the agent app(s) for the new setting to apply.");
+      lines.push("Sessions already deleted cannot be recovered.");
+      lines.push("");
+      lines.push(
+        retentionPending.length > 0
+          ? "Enter / Esc  ·  continue (remaining risks will ask again)"
+          : "Enter / Esc  ·  continue to session list",
+      );
       return lines;
     }
 
-    lines.push("Agents are set to delete their own session history");
+    if (retentionMode === "review") {
+      lines.push("Session retention — status");
+      lines.push("");
+      if (retentionFindings.length === 0) {
+        lines.push("  No Grok / Qoder / Claude install detected.");
+      } else {
+        for (const f of retentionFindings) {
+          let badge: string;
+          if (!f.atRisk) badge = "OK";
+          else if (retentionAcked.some((a) => a.agent === f.agent))
+            badge = "IGNORED";
+          else badge = "AT RISK";
+          lines.push(`  ${f.agent.padEnd(8)} ${badge}`);
+          lines.push(`    ${f.notice}`);
+          if (f.atRisk) {
+            lines.push(`    Suggested: ${f.fixHint}`);
+            lines.push(`    File: ${f.settingsPath}`);
+          }
+          lines.push("");
+        }
+      }
+      if (retentionPending.length > 0) {
+        lines.push("Open risks still need a choice (see decision popup).");
+        lines.push("");
+      }
+      if (retentionAcked.length > 0) {
+        lines.push(
+          "Ignored = you keep the agent's cleanup; we won't popup again.",
+        );
+        lines.push(
+          "u = unignore all (takes effect immediately; next start may popup)",
+        );
+        lines.push("");
+      }
+      lines.push(
+        "y fix open risks  ·  i ignore open risks  ·  u unignore  ·  Esc close",
+      );
+      return lines;
+    }
+
+    // decision
+    lines.push("⚠  Session auto-deletion risk");
     lines.push("");
-    for (const f of retentionRisky) {
+    lines.push(
+      "These agents can delete local session history on their own schedule.",
+    );
+    lines.push("");
+    for (const f of retentionPending) {
       lines.push(`${f.agent}`);
       lines.push(`  ${f.notice}`);
       lines.push(`  Suggested config:  ${f.fixHint}`);
       lines.push(`  File:  ${f.settingsPath}`);
       lines.push("");
     }
-    lines.push(
-      "Applying this keeps every other key in those files unchanged, and",
-    );
-    lines.push(
-      "copies each existing file to settings.json.bak so you can undo it.",
-    );
-    lines.push("Sessions already deleted cannot be recovered.");
+    lines.push("Choose for the agents listed above:");
     lines.push("");
-    lines.push("Apply?   y = yes   ·   n / Esc = no");
+    lines.push("  y   Fix config now");
+    lines.push("      Write the suggested keys (other keys kept; .bak first).");
+    lines.push("");
+    lines.push("  i   I understand — leave their settings alone");
+    lines.push("      Never ask again for these agents (user preference).");
+    lines.push("      You can change your mind anytime with :retention");
+    lines.push("");
+    if (retentionBlocking) {
+      lines.push(
+        "Please choose y or i  ·  Esc disabled  ·  cannot quit until you decide",
+      );
+    } else {
+      lines.push("y fix  ·  i ignore  ·  Esc cancel");
+    }
     return lines;
   }
 
@@ -1551,13 +1681,32 @@ export async function runRawTui(
       const raw = lines[i] ?? "";
       let cell: string;
       if (i === 0) {
+        // done title: light ink on solid ok green; otherwise brand chip
         cell = fgBg(
-          theme.brandNameFg,
-          theme.brandNameBg,
+          retentionMode === "done" ? theme.onOk : theme.brandNameFg,
+          retentionMode === "done" ? theme.ok : theme.brandNameBg,
           padEndWidth(` ${raw} `, layout.cols),
         );
-      } else if (raw && !raw.startsWith(" ")) {
+      } else if (
+        raw.startsWith("  y ") ||
+        raw.startsWith("  i ") ||
+        raw.startsWith("y ") ||
+        raw.startsWith("Choose")
+      ) {
+        cell = fg(theme.accent, padEndWidth(raw, layout.cols));
+      } else if (
+        raw &&
+        !raw.startsWith(" ") &&
+        !raw.startsWith("✓") &&
+        retentionMode === "decision"
+      ) {
         cell = fg(theme.warn, padEndWidth(raw, layout.cols));
+      } else if (raw.includes("AT RISK")) {
+        cell = fg(theme.warn, padEndWidth(raw, layout.cols));
+      } else if (raw.includes("IGNORED")) {
+        cell = fg(theme.dim, padEndWidth(raw, layout.cols));
+      } else if (raw.includes(" OK") || raw.startsWith("✓")) {
+        cell = fg(theme.ok, padEndWidth(raw, layout.cols));
       } else {
         cell = fg(theme.text, padEndWidth(raw, layout.cols));
       }
@@ -1567,16 +1716,21 @@ export async function runRawTui(
 
   function paintFooter(): void {
     if (retentionMode) {
+      let hint: string;
+      if (retentionMode === "decision") {
+        hint = retentionBlocking
+          ? "  y fix config  ·  i acknowledge (no more popup)"
+          : "  y fix  ·  i ignore  ·  Esc cancel";
+      } else if (retentionMode === "done") {
+        hint = "  Enter / Esc  ·  continue";
+      } else {
+        hint = "  y fix open  ·  i ignore open  ·  u unignore  ·  Esc close";
+      }
       paintFullRow(
         layout.rowFooter,
         fg(theme.dim, " ") +
           fgBg(theme.editFg, theme.editBg, " RETENTION ") +
-          fg(
-            theme.dim,
-            retentionMode === "confirm"
-              ? "  y apply  ·  n / Esc cancel"
-              : "  Esc / Enter close",
-          ),
+          fg(theme.dim, hint),
       );
       return;
     }
@@ -1660,15 +1814,46 @@ export async function runRawTui(
       );
       return;
     }
-    // Idle: retention risk outranks the generic key hint — sessions are at stake.
-    if (retentionRisky.length > 0) {
+    // Just-fixed success strip (this session).
+    if (retentionJustFixed.length > 0) {
+      paintFullRow(
+        layout.rowFooter,
+        fg(
+          theme.ok,
+          " ✓ " +
+            truncateWidth(
+              `retention updated for ${retentionJustFixed.join(", ")}  ·  restart those agents to apply`,
+              layout.cols - 4,
+            ),
+        ),
+      );
+      return;
+    }
+    // Open risks (should be rare outside popup — e.g. failed fix).
+    if (retentionPending.length > 0) {
       paintFullRow(
         layout.rowFooter,
         fg(
           theme.warn,
           " ⚠ " +
             truncateWidth(
-              `${retentionWarning(retentionRisky)}  ·  run :retention to fix`,
+              `${retentionWarning(retentionPending)}  ·  run :retention`,
+              layout.cols - 4,
+            ),
+        ),
+      );
+      return;
+    }
+    // Acknowledged risks: never popup, but remind user they can reverse.
+    if (retentionAcked.length > 0) {
+      const names = retentionAcked.map((f) => f.agent).join(",");
+      paintFullRow(
+        layout.rowFooter,
+        fg(
+          theme.dim,
+          " ℹ " +
+            truncateWidth(
+              `${names}: auto-delete risk acknowledged  ·  change mind: :retention`,
               layout.cols - 4,
             ),
         ),
@@ -1787,7 +1972,7 @@ export async function runRawTui(
   }
 
   function fullPaint(): void {
-    // Flood canvas dark first (light terminals would otherwise stay white)
+    // Flood our theme canvas first (host terminal default must not show through)
     write(move(1, 1) + sgrDefault() + `${ESC}[2J` + move(1, 1));
     paintBrand();
     paintRule(layout.rowRuleBrand, "brand");
@@ -2182,36 +2367,105 @@ export async function runRawTui(
   }
 
   function openRetention(): void {
-    // Re-audit: the user may have edited settings.json since startup.
-    retentionFindings = auditRetention();
-    retentionRisky = retentionFindings.filter((f) => f.atRisk);
-    if (retentionRisky.length === 0) {
-      statusLine =
-        retentionFindings.length === 0
-          ? "no qoder/claude config found"
-          : "retention already safe for all agents";
-      paintFooter();
-      return;
-    }
-    retentionMode = "confirm";
+    syncRetentionState();
+    retentionBlocking = false;
+    retentionJustFixed = [];
     statusLine = "";
+    if (retentionPending.length > 0) {
+      retentionMode = "decision";
+    } else {
+      retentionMode = "review";
+    }
     fullPaint();
   }
 
-  function applyRetention(): void {
-    const results = fixRetention();
+  function applyRetentionFix(): void {
+    const targets = [...retentionPending];
+    if (targets.length === 0) {
+      statusLine = "no open retention risks to fix";
+      paintFooter();
+      return;
+    }
+    const results = fixRetentionFindings(targets);
     retentionResultLines = results.map((r) =>
       r.ok
         ? `  ok     ${r.agent} → ${r.settingsPath}${r.backupPath ? "  (backup written)" : "  (created)"}`
         : `  FAIL   ${r.agent} → ${r.error ?? "unknown error"}`,
     );
-    retentionFindings = auditRetention();
-    retentionRisky = retentionFindings.filter((f) => f.atRisk);
+    const okAgents = results.filter((r) => r.ok).map((r) => r.agent);
+    const failed = results.filter((r) => !r.ok);
+    retentionJustFixed = okAgents;
+    syncRetentionState();
     retentionMode = "done";
-    const failed = results.filter((r) => !r.ok).length;
-    statusLine = failed
-      ? `retention: ${failed} failed`
-      : "retention disabled";
+    // Stay non-blocking on the result screen; if anything still pending after
+    // close, we reopen decision (see closeRetentionPopup).
+    retentionBlocking = false;
+    if (failed.length > 0) {
+      retentionResultLines.push("");
+      retentionResultLines.push(
+        `${failed.length} failed — after continue you can retry (y/i) for remaining agents.`,
+      );
+    }
+    statusLine = failed.length
+      ? `retention: ${failed.length} failed  ·  ${okAgents.length} ok`
+      : `retention updated for ${okAgents.join(", ") || "—"}`;
+    fullPaint();
+  }
+
+  function applyRetentionIgnore(): void {
+    const agents = retentionPending.map((f) => f.agent);
+    if (agents.length === 0) {
+      statusLine = "no open risks to ignore";
+      paintFooter();
+      return;
+    }
+    const wrote = ignoreRetentionAgents(agents, "user acknowledged via TUI");
+    if (!wrote.ok) {
+      statusLine = `could not save preference: ${wrote.error ?? "write failed"}`;
+      paintFooter();
+      return;
+    }
+    syncRetentionState();
+    retentionMode = null;
+    retentionBlocking = false;
+    statusLine = `risk acknowledged for ${agents.join(", ")}  ·  change mind anytime: :retention`;
+    fullPaint();
+  }
+
+  function applyRetentionUnignore(): void {
+    const wrote = unignoreRetentionAgents();
+    if (!wrote.ok) {
+      statusLine = `could not clear ignores: ${wrote.error ?? "write failed"}`;
+      paintFooter();
+      return;
+    }
+    syncRetentionState();
+    if (retentionPending.length > 0) {
+      retentionMode = "decision";
+      retentionBlocking = false;
+      statusLine = "ignores cleared  ·  choose y or i for open risks";
+    } else {
+      retentionMode = "review";
+      statusLine = "ignores cleared";
+    }
+    fullPaint();
+  }
+
+  function closeRetentionPopup(): void {
+    if (retentionBlocking && retentionMode === "decision") return;
+    // After a partial fix, reopen decision for remaining open risks.
+    if (retentionMode === "done") {
+      syncRetentionState();
+      if (retentionPending.length > 0) {
+        retentionMode = "decision";
+        retentionBlocking = false;
+        statusLine = `${retentionPending.map((f) => f.agent).join(", ")} still at risk  ·  y fix  ·  i ignore`;
+        fullPaint();
+        return;
+      }
+    }
+    retentionMode = null;
+    retentionBlocking = false;
     fullPaint();
   }
 
@@ -2455,29 +2709,65 @@ export async function runRawTui(
     const onKey = (_str: string | undefined, key: AppKey): void => {
       const str = _str ?? "";
 
-      // ----- retention confirm overlay (writes settings.json — y/n only) -----
+      // ----- retention TUI popup -----
       if (retentionMode) {
-        if (retentionMode === "confirm") {
+        if (retentionMode === "decision") {
           if (key.name === "y" || str === "y" || str === "Y") {
-            applyRetention();
+            applyRetentionFix();
+            return;
+          }
+          if (key.name === "i" || str === "i" || str === "I") {
+            applyRetentionIgnore();
             return;
           }
           if (
-            key.name === "escape" ||
-            key.name === "n" ||
-            str === "n" ||
-            str === "N"
+            !retentionBlocking &&
+            (key.name === "escape" ||
+              key.name === "n" ||
+              str === "n" ||
+              str === "N")
           ) {
-            retentionMode = null;
             statusLine = "retention unchanged";
-            fullPaint();
+            closeRetentionPopup();
             return;
+          }
+          // Blocking: swallow Esc / other keys until y or i.
+          return;
+        }
+        if (retentionMode === "done") {
+          if (
+            key.name === "escape" ||
+            key.name === "return" ||
+            str === "q" ||
+            key.name === "q"
+          ) {
+            closeRetentionPopup();
           }
           return;
         }
+        // review
+        if (key.name === "y" || str === "y" || str === "Y") {
+          if (retentionPending.length > 0) applyRetentionFix();
+          else {
+            statusLine = "no open risks to fix";
+            paintFooter();
+          }
+          return;
+        }
+        if (key.name === "i" || str === "i" || str === "I") {
+          if (retentionPending.length > 0) applyRetentionIgnore();
+          else {
+            statusLine = "no open risks to ignore";
+            paintFooter();
+          }
+          return;
+        }
+        if (key.name === "u" || str === "u" || str === "U") {
+          applyRetentionUnignore();
+          return;
+        }
         if (key.name === "escape" || key.name === "return") {
-          retentionMode = null;
-          fullPaint();
+          closeRetentionPopup();
         }
         return;
       }

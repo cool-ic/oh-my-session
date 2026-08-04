@@ -7,7 +7,8 @@ import { applyTitleOverrides } from "./lib/title-store.js";
 import { applyStarFlags } from "./lib/star-store.js";
 import { applyTags } from "./lib/tag-store.js";
 import { formatTable } from "./lib/format.js";
-import { retentionRisks } from "./lib/retention.js";
+import { auditRetention } from "./lib/retention.js";
+import { pendingRetentionRisks } from "./lib/retention-prefs.js";
 import { runRawTui } from "./tui/rawApp.js";
 
 function loadSessions(opts: {
@@ -98,15 +99,18 @@ function parseArgs(argv: string[]): {
   return out;
 }
 
-/** stderr, so --list / --json stdout stays pipe-safe */
+/** stderr, so --list / --json stdout stays pipe-safe.
+ * Only warn about open (non-ignored) risks — acknowledged agents stay quiet. */
 function warnRetention(): void {
-  const risks = retentionRisks();
-  if (risks.length === 0) return;
-  for (const r of risks) {
+  const pending = pendingRetentionRisks(auditRetention());
+  if (pending.length === 0) return;
+  for (const r of pending) {
     console.error(`⚠ ${r.notice}`);
     console.error(`  Suggested config: ${r.fixHint}  (${r.settingsPath})`);
   }
-  console.error("  Run the TUI and type :retention to apply it (asks first).");
+  console.error(
+    "  Run the TUI for the retention popup (y = fix config · i = acknowledge).",
+  );
 }
 
 async function main(): Promise<void> {

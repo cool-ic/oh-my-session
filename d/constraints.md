@@ -15,7 +15,11 @@
    - TUI 中 `Space` 片选、`:empty`/`:missing`/`:bad` 批量片选、`dd` **标记**删除（有片选则批量；否则当前行）→ 仅在 **`:wq`** 时由 `lib/delete-session.ts` 删除对应会话存储（Grok 会话目录 / Qoder jsonl+meta+dir / Claude jsonl）。**无确认框**。
    - TUI 中 **`i` rename**：写 **`data/session-titles.csv`**，不改 Agent 原生存储。  
    - TUI 中 **`*` star**：写 **`data/session-stars.csv`**；星标会话置顶且 **`dd` 不可删**，须先取消星标。  
-   - TUI 中 **`:retention`**：这是**唯一**允许写 Agent **配置文件**（`~/.qoder/settings.json`、`~/.claude/settings.json`）的路径；会话存储本身仍然只读。约束：**必须**先在浮层里展示要改的键与文件路径并等用户 `y` 确认；read-modify-write 保留其余所有键；写前把原文件复制为 `settings.json.bak`；原文件不是合法 JSON 时**拒绝**写入并提示手改；落盘用 `.tmp` + `rename` 原子替换。启动时只做只读体检（footer / stderr 提示），**不**自动改配。
+   - TUI 中 **retention 弹窗** / **`:retention`**：这是**唯一**允许写 Agent **配置文件**的路径；会话存储本身仍然只读。覆盖：
+     - Qoder：`~/.qoder/settings.json` → `general.sessionRetention.enabled = false`
+     - Claude：`~/.claude/settings.json` → `cleanupPeriodDays = 99999`（schema 拒 `0`）
+     - Grok：`~/.grok/config.toml` → `[storage] cleanup_ttl_days = 99999`（源码要求 `> 0`，默认 30）
+     约束：**必须**先在 TUI 弹窗展示要改的键与文件路径；`y` = 改配，`i` = 知情不改配（写入用户级 `data/retention-prefs.csv`，该 agent 不再自动弹窗，footer 弱提醒可 `:retention` 反悔）；启动时若有 atRisk 且未 ignore 的 agent 则**阻塞弹窗**（禁 Esc）；read-modify-write 保留其余所有键/表；写前 `.bak`；JSON 不合法时**拒绝**写入；Grok TOML 手术式编辑；落盘 `.tmp`+`rename`。**不**在无确认时自动改 Agent 配。
 4. **允许**：改本仓库代码与文档；跑只读对照（`grok sessions list` 等）。  
 5. **允许**：读会话元数据；**禁止**把完整 transcript 正文写入本仓库常驻文档或提交 git。  
 6. **退出**（vim 语义）：

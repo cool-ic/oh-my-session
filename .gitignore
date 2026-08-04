@@ -14,7 +14,9 @@ tmp/
 data/session-titles.csv
 data/session-stars.csv
 data/session-tags.csv
+data/retention-prefs.csv
 data/.session-*.tmp
+data/.retention-prefs.*.tmp
 
 # Large dual-width fonts (download for screenshots; not published)
 scripts/fonts/Sarasa*.ttf

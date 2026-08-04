@@ -66,23 +66,53 @@ tmux new-session -d -s "$SESSION" -x "$COLS" -y "$ROWS"
 tmux send-keys -t "$SESSION" "cd '$ROOT' && $ENVPREFIX npm start" Enter
 sleep "$WAIT"
 
-# wait until brand paints
-for _ in $(seq 1 15); do
+# wait until brand paints (main list or retention popup)
+for _ in $(seq 1 20); do
   tmux capture-pane -t "$SESSION" -pe -S -50 >"$ANSI" || true
-  if grep -qE 'oh-my-sessions|STATUS' "$ANSI" 2>/dev/null; then
+  if grep -qE 'oh-my-sessions|STATUS|auto-deletion|Session retention' "$ANSI" 2>/dev/null; then
     break
   fi
   sleep 0.4
 done
 
+# Fixture agents start "at risk", so the TUI opens a blocking retention popup.
+# main/chat need the session list; retention wants the popup itself.
+has_retention_popup() {
+  grep -qE 'auto-deletion|I understand|RETENTION' "$ANSI" 2>/dev/null
+}
+
 case "$MODE" in
-  chat)
-    tmux send-keys -t "$SESSION" Enter
-    sleep 1.2
+  main|chat)
+    tmux capture-pane -t "$SESSION" -pe -S -80 >"$ANSI" || true
+    if has_retention_popup; then
+      # Acknowledge risks → list view (do NOT use bare `i` later for rename).
+      tmux send-keys -t "$SESSION" 'i'
+      sleep 0.8
+      # wait for STATUS header
+      for _ in $(seq 1 12); do
+        tmux capture-pane -t "$SESSION" -pe -S -50 >"$ANSI" || true
+        if grep -q 'STATUS' "$ANSI" 2>/dev/null; then
+          break
+        fi
+        sleep 0.3
+      done
+    fi
+    if [[ "$MODE" == "chat" ]]; then
+      # Prefer a starred / multi-turn session near the top (gg then Enter).
+      tmux send-keys -t "$SESSION" 'g' 'g'
+      sleep 0.2
+      tmux send-keys -t "$SESSION" Enter
+      sleep 1.2
+    fi
     ;;
   retention)
-    tmux send-keys -t "$SESSION" ':retention' Enter
-    sleep 1.2
+    tmux capture-pane -t "$SESSION" -pe -S -80 >"$ANSI" || true
+    if ! has_retention_popup; then
+      # Already safe/ignored — open status panel instead.
+      tmux send-keys -t "$SESSION" ':retention' Enter
+      sleep 1.0
+    fi
+    sleep 0.4
     ;;
 esac
 

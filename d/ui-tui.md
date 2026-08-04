@@ -63,16 +63,18 @@ gutter 列画 │；表头行接缝用 ┬
 
 信息尽量进表格，详情补命令与说明。
 
-| 列 | 显示宽 | 内容 |
-|----|--------|------|
-| mark | 2 | 光标 `▌`；片选 `*`（与 STATUS 分开） |
-| star | 3 | 星标 `★` 独立列 + 右侧 1 列空隙，不贴 STATUS |
-| 状态 | 8 | 色块：OK / Empty / Missing |
-| 来源 | 6 | `Grok` / `Qoder` / … |
-| 多久 | 5 | 右对齐：`2s` `30m` `5d` `1mo` |
-| 条数 | 5 | 右对齐 messageCount |
-| 标题 | flex ~52% | 会话标题 |
-| 续跑目录 | flex ~48% | `cwd` 原文；失效前缀 `✗` |
+| 列 | 显示宽 | 间距下限（后） | 内容 |
+|----|--------|----------------|------|
+| mark | 2 | — | 光标 `▌`；片选 `*` |
+| star | 3 | 1 | 星标 `★` / `☆` |
+| 状态 | 8 | **2** | 色块：OK / Empty / Missing |
+| 来源 | 6 | **2** | `Grok` / `Qoder` / … |
+| 多久 | 5 | **2** | 右对齐：`2s` `30m` `5d` `1mo` |
+| 条数 | 5 | **2**（MSGS→TITLE，勿再缩成 1） | 右对齐 messageCount |
+| 标题 | flex ~38%，cap 36/40，min 12 | **2** | 会话标题 |
+| 续跑目录 | flex 剩余，min 12 | — | `cwd` 原文；失效前缀 `✗` |
+
+固定列间距一律 ≥2（star→STATUS 例外为 1）。`LC_FIXED` + title/path 下限见 `rawApp.ts` `LC` / `FLEX_MIN`。
 
 **排序：** `lastActive` 降序。  
 
@@ -191,7 +193,7 @@ gutter 列画 │；表头行接缝用 ┬
 
 **Rename 语义（`i`）：** 立即写入本仓库 CSV，不经过 `:wq`，**不**改 Agent 原生存储。
 
-**Retention 语义（`:retention`）：** 唯一会写 Agent **配置文件** 的路径（`settings.json`），必须 `y` 确认；保留其余键、留 `.bak`、`.tmp`+rename 原子写。启动只做只读体检并在 footer 提示。详见 constraints §1.3。
+**Retention 语义（TUI 弹窗 / `:retention`）：** 启动时若有 atRisk 且未 ignore 的 agent → **阻塞弹窗**（`y` 改配 · `i` 知情不改并写入 `data/retention-prefs.csv`，此后该 agent 不再弹，footer 提示可 `:retention` 反悔）。`:retention` 可随时打开（决策 / 状态 / `u` unignore）。改配成功另有结果弹窗。详见 constraints §1.3。
 | 位置 | 格式 |
 |------|------|
 | `data/session-titles.csv` | `source,id,title,updated_at`（逗号/引号按 RFC4180） |

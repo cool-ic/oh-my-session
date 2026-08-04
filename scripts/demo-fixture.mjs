@@ -380,7 +380,7 @@ w(path.join(data, "session-stars.csv"), stars.join("\n") + "\n");
 w(path.join(data, "session-tags.csv"), tags.join("\n") + "\n");
 
 // Agent settings in their default (cleanup-enabled) state, with unrelated keys
-// present, so `:retention` has something real to report and to preserve.
+// present, so the retention popup has something real to report and to preserve.
 w(
   path.join(root, ".qoder/settings.json"),
   JSON.stringify({ general: { statusBar: { enabled: true } } }, null, 2) + "\n",
@@ -388,6 +388,18 @@ w(
 w(
   path.join(root, ".claude/settings.json"),
   JSON.stringify({ theme: "dark", cleanupPeriodDays: 30 }, null, 2) + "\n",
+);
+// Grok: omit cleanup_ttl_days → default 30-day mtime TTL (at risk).
+w(
+  path.join(root, ".grok/config.toml"),
+  [
+    "[cli]",
+    'installer = "internal"',
+    "",
+    "[ui]",
+    'theme = "auto"',
+    "",
+  ].join("\n") + "\n",
 );
 
 console.log(`demo fixture: ${root}  (${SESSIONS.length} sessions)`);
