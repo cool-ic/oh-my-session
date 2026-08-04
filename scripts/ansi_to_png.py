@@ -302,13 +302,24 @@ def main() -> None:
                     )
 
                 if ch not in (" ", "\t", "\u00a0"):
-                    # Pick font: fullwidth → CJK face; else Latin mono
+                    # Pick font: fullwidth → CJK face; else Latin mono.
+                    # If the chosen face has no glyph (empty bbox → tofu), try the
+                    # other face so symbols like * / · still paint.
                     code = ord(ch)
                     use_cjk = is_fullwidth_codepoint(code) or mode != "dual"
                     font = font_cjk if use_cjk else font_latin
+                    try:
+                        bb = font.getbbox(ch)
+                        missing = bb is None or bb[2] <= bb[0] or bb[3] <= bb[1]
+                    except Exception:
+                        missing = False
+                    if missing and font is not font_latin:
+                        font = font_latin
+                    elif missing and font is not font_cjk:
+                        font = font_cjk
 
                     # Render into a cell-sized RGBA tile then paste — hard clip
-                    # so oversize glyphs (e.g. ★) cannot shift columns.
+                    # so oversize glyphs cannot shift columns.
                     tile = Image.new("RGBA", (cell_px_w, CELL_H), (0, 0, 0, 0))
                     td = ImageDraw.Draw(tile)
                     # Left edge + shared baseline; never horizontal-center

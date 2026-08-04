@@ -163,7 +163,7 @@ const HELP_GROUPS: ReadonlyArray<{ title: string; keys: [string, string][] }> =
  */
 const LC = {
   mark: 2, // cursor ▌ + multi *
-  star: 3, // ★ / ☆ cell
+  star: 3, // * / · cell (ASCII-safe; ★/☆ missing in many mono fonts)
   /** Gaps (min floors, display cols) */
   gs: 1, // star → STATUS (icon column, 1 is enough)
   g1: 2, // STATUS → SOURCE
@@ -716,8 +716,8 @@ export async function runRawTui(
       : isMulti
         ? " *"
         : "  ";
-    // star: filled ★ / outline ☆ (reference TUI style)
-    const starPlain = padEndWidth(starred ? "★" : "☆", LC.star);
+    // star: * filled / · empty — avoid ★/☆ (missing glyph → tofu in many mono faces)
+    const starPlain = padEndWidth(starred ? "*" : "·", LC.star);
     const gapStar = " ".repeat(LC.gs);
     const statusPlain = padEndWidth(
       h === "ok" ? "OK" : h === "empty" ? "Empty" : "Missing",
@@ -765,8 +765,8 @@ export async function runRawTui(
       : fg(theme.dim, pathPlain);
 
     const starColored = starred
-      ? fg(theme.star, padEndWidth("★", LC.star))
-      : fg(theme.starEmpty, padEndWidth("☆", LC.star));
+      ? fg(theme.star, padEndWidth("*", LC.star))
+      : fg(theme.starEmpty, padEndWidth("·", LC.star));
 
     return padAnsi(
       markPlain +
@@ -790,7 +790,7 @@ export async function runRawTui(
   function buildColHeader(): string {
     return padAnsi(
       "  " +
-        fg(theme.starEmpty, padEndWidth("☆", LC.star)) +
+        fg(theme.starEmpty, padEndWidth("·", LC.star)) +
         " ".repeat(LC.gs) +
         fg(theme.dim, padEndWidth("STATUS", LC.status)) +
         " ".repeat(LC.g1) +
@@ -2209,7 +2209,7 @@ export async function runRawTui(
       if (sessionKey(a) === k) a.extra = { ...a.extra, starred: r.starred };
     }
     statusLine = r.starred
-      ? `starred ★  ·  pinned · cannot dd until * again`
+      ? `starred *  ·  pinned · cannot dd until * again`
       : `unstarred  ·  dd allowed`;
     rebuildList();
     // keep focus on same session after re-sort

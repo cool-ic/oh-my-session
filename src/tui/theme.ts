@@ -41,7 +41,7 @@ export const theme = {
   multiFg: "#2A2410",
   multiMark: "#B8921E",
 
-  /** Stars: filled gold / empty outline */
+  /** Stars: filled * / empty · */
   star: "#B8921E",
   starEmpty: "#9AA3B0",
 
