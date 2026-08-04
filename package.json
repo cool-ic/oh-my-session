@@ -1,7 +1,7 @@
 {
   "name": "oh-my-session",
   "version": "0.1.5",
-  "description": "A local file manager for unfinished AI coding sessions across Qoder, Claude Code, and Grok.",
+  "description": "Manage AI coding sessions (Grok / Qoder / Claude). Install: npm i -g oh-my-session · Run: oms",
   "type": "module",
   "main": "./dist/index.js",
   "bin": {
@@ -12,7 +12,6 @@
     "start": "tsx src/index.ts",
     "build": "tsc",
     "prepack": "npm run build",
-    "postinstall": "node scripts/postinstall.mjs",
     "list": "tsx src/index.ts --list",
     "list:json": "tsx src/index.ts --json",
     "shots": "bash scripts/screenshot.sh main && bash scripts/screenshot.sh chat && bash scripts/screenshot.sh retention",
@@ -37,7 +36,6 @@
   "license": "MIT",
   "files": [
     "dist",
-    "scripts/postinstall.mjs",
     "docs/images",
     "docs/README_zh-CN.md",
     "README.md",

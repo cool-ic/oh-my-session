@@ -13,9 +13,11 @@ Stop guessing whether that was Qoder, Grok, or Claude Code — and stop hunting 
 **English** · [中文速览](./docs/README_zh-CN.md)
 
 ```bash
-npm install -g oh-my-session
-oms
+npm install -g oh-my-session   # package name on npm
+oms                            # ← the command you run (short for oh-my-session)
 ```
+
+> **Package ≠ command:** the npm package is `oh-my-session`; after install, open the TUI with **`oms`**.
 
 Agents also **auto-delete** old sessions (Claude ~30 days by default). `:retention` shows the config and can fix it for you.
 
@@ -80,13 +82,17 @@ You use more than one coding agent. Each dumps sessions into a different home di
 ### Install & run
 
 ```bash
-npm install -g oh-my-session
-oms
+npm install -g oh-my-session   # package name
+oms                            # command (this is what you type day to day)
 ```
 
-After install, npm prints a short reminder that the command is **`oms`**.
+| | Name |
+|--|------|
+| **npm package** | `oh-my-session` |
+| **CLI command** | **`oms`** (also `oh-my-session`) |
+| **Settings** | `~/.config/oms/` |
 
-Or run without installing globally:
+Or try once without a global install:
 
 ```bash
 npx oh-my-session

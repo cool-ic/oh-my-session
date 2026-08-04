@@ -13,9 +13,11 @@
 [English](../README.md) · **简体中文**
 
 ```bash
-npm install -g oh-my-session
-oms
+npm install -g oh-my-session   # npm 上的包名
+oms                            # ← 日常敲的命令（oh-my-session 的缩写）
 ```
+
+> **包名 ≠ 命令：** 安装用 `oh-my-session`，打开 TUI 请运行 **`oms`**。
 
 Agent 还会**偷偷删旧会话**（Claude 默认约 30 天）。用 `:retention` 看清配置，确认后一键改掉。
 
@@ -80,11 +82,15 @@ Agent 还会**偷偷删旧会话**（Claude 默认约 30 天）。用 `:retentio
 ### 安装并运行
 
 ```bash
-npm install -g oh-my-session
-oms
+npm install -g oh-my-session   # 包名
+oms                            # 命令（日常只记这个）
 ```
 
-安装结束后 npm 会提示：命令是 **`oms`**。
+| | 名称 |
+|--|------|
+| **npm 包** | `oh-my-session` |
+| **命令** | **`oms`**（也可 `oh-my-session`） |
+| **本机设置** | `~/.config/oms/` |
 
 也可以不全局安装，直接试用：
 
