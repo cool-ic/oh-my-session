@@ -1,6 +1,6 @@
 {
   "name": "oh-my-session",
-  "version": "0.1.5",
+  "version": "2.0.0",
   "description": "Manage AI coding sessions (Grok / Qoder / Claude). Install: npm i -g oh-my-session · Run: oms",
   "type": "module",
   "main": "./dist/index.js",
