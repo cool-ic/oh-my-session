@@ -6,8 +6,8 @@
  *   CLAUDE_CONFIG_DIR defaults to ~/.claude
  *
  * Each .jsonl line is a typed record (user, assistant, custom-title, …).
- * Resume: `claude --resume <uuid>` (ID is looked up across projects;
- *   -c continues most recent in current dir). Prefer original project cwd.
+ * Resume: `claude --resume <uuid>` must be run from the original project cwd
+ *   (or a related worktree); `-c` continues the most recent session in cwd.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -44,6 +44,11 @@ interface ClaudeLine {
   summary?: string;
   lastPrompt?: string;
   message?: { content?: unknown; role?: string };
+}
+
+function shellQuote(p: string): string {
+  if (/^[A-Za-z0-9_./:-]+$/.test(p)) return p;
+  return `'${p.replace(/'/g, `'\\''`)}'`;
 }
 
 /**
@@ -183,7 +188,9 @@ export function discoverClaude(home?: string): SessionRecord[] {
           projectSlug,
           branch: meta.branch,
           cwdSource: meta.cwd ? "jsonl:cwd" : null,
-          resume: `claude --resume ${id}`,
+          resume: meta.cwd
+            ? `cd ${shellQuote(meta.cwd)} && claude --resume ${id}`
+            : `claude --resume ${id}`,
         },
       });
     }

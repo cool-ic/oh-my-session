@@ -76,7 +76,7 @@ Notes:
   RESUME DIR = project path when the session was started (kept even if deleted)
   Qoder      = must resume under that dir → command includes cd …
   Grok       = UUID works from any cwd → grok --resume <id>
-  Claude     = UUID works from any cwd → claude --resume <id>  (-c is cwd-scoped)
+  Claude     = resume by ID from its project dir → command includes cd … when known
   OK/Empty/Missing = has messages / 0 msgs / resume path gone on disk
 
   Update checks hit the public npm registry (cached 24h).

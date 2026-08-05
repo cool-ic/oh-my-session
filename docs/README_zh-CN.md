@@ -150,7 +150,7 @@ OMS_NO_UPDATE=1 oms                    # 关闭检查与提示
 |------|--------------|----------|
 | **Grok Build** | `$GROK_HOME/sessions/…` · `updates.jsonl` | `grok --resume <id>`（任意目录） |
 | **Qoder** | Qoder 项目 / history jsonl | `cd <项目> && qodercli -r <id>` |
-| **Claude Code** | `~/.claude/projects/<slug>/*.jsonl` | `claude --resume <id>`（任意目录） |
+| **Claude Code** | `~/.claude/projects/<slug>/*.jsonl` | `cd <项目> && claude --resume <id>` |
 | Codex / Cursor | 类型中预留 | — |
 
 ---

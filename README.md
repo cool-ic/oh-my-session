@@ -150,7 +150,7 @@ OMS_NO_UPDATE=1 oms                    # skip network / notices
 |--------|-------------------|----------------|
 | **Grok Build** | `$GROK_HOME/sessions/…` · `updates.jsonl` | `grok --resume <id>` (any cwd) |
 | **Qoder** | Qoder project / history jsonl | `cd <project> && qodercli -r <id>` |
-| **Claude Code** | `~/.claude/projects/<slug>/*.jsonl` | `claude --resume <id>` (any cwd) |
+| **Claude Code** | `~/.claude/projects/<slug>/*.jsonl` | `cd <project> && claude --resume <id>` |
 | Codex / Cursor | Reserved in types | — |
 
 ---

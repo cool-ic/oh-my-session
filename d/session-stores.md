@@ -180,11 +180,11 @@ user 的 `message.content` 可能是 **string 或 content-block 数组**（须 `
 
 | 方式 | 行为 |
 |------|------|
-| `claude --resume <uuid>` | **按 ID 跨 project 查找**（本工具默认命令，不强制 `cd`） |
+| `claude --resume <uuid>` | **需在原项目目录或相关 worktree 下按 ID 查找**（本工具复制命令会 `cd` 到记录的 cwd） |
 | `claude -c` / `--continue` | **仅当前目录**最近一条 |
 | 无参 `--resume` | 交互选择器 |
 
-本工具：`pathMode=recommended`；UI 只展示 `claude --resume <id>`，不写说教 Note。
+本工具：有 `cwd` 时 `pathMode=required`，UI 只展示 `cd <dir> && claude --resume <id>`，不写说教 Note。
 
 ### 删除
 
@@ -268,10 +268,10 @@ grok,019f…,work,2026-08-02T12:00:00.000Z
 
 - `resumeInfo(s)` → `{ command, pathMode }`  
 - `resumeHint(s)` → 仅 command  
-- **UI 不展示 pathMode/note 文案**；Qoder 的路径约束写进 command 的 `cd … &&`  
+- **UI 不展示 pathMode/note 文案**；Qoder / Claude 的路径约束写进 command 的 `cd … &&`  
 
 | pathMode | 含义（内部） |
 |----------|------|
-| `required` | 必须在续跑目录（Qoder；已 bake 进 command） |
-| `recommended` | ID 可别处开（Grok / Claude） |
+| `required` | 必须在续跑目录（Qoder / Claude；已 bake 进 command） |
+| `recommended` | ID 可别处开（Grok） |
 | `unknown` | 无路径记录 |

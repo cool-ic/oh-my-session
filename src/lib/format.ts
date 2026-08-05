@@ -140,7 +140,7 @@ export function formatTable(sessions: SessionRecord[]): string {
     `${sessions.length} session(s)  ·  OK ${nOk}  ·  Empty ${nEmpty}  ·  Missing ${nMiss}`,
   );
   out.push(
-    "Note: RESUME DIR = project path at start; Qoder requires that dir; Grok/Claude ID work anywhere; Missing keeps path text",
+    "Note: RESUME DIR = project path at start; Qoder/Claude resume commands include cd when needed; Grok ID works anywhere; Missing keeps path text",
   );
   return out.join("\n");
 }
@@ -155,8 +155,8 @@ export interface ResumeInfo {
   command: string;
   /**
    * Path binding (internal / future use — not shown as a preachy Note in UI):
-   * - required: must be in resume dir (Qoder; baked into command via `cd`)
-   * - recommended: UUID works anywhere (Grok / Claude)
+   * - required: must run from the resume dir; baked into command via `cd`
+   * - recommended: ID works anywhere (Grok)
    * - unknown: no path recorded
    */
   pathMode: "required" | "recommended" | "unknown";
@@ -164,7 +164,7 @@ export interface ResumeInfo {
 
 /**
  * Source-specific resume command.
- * Qoder: embed `cd` in the command. Grok/Claude: ID resume is global.
+ * Qoder/Claude: embed `cd` when a resume dir is known. Grok: ID resume is global.
  * Do not surface tutorial notes in the UI — the command is enough.
  */
 export function resumeInfo(s: SessionRecord): ResumeInfo {
@@ -188,10 +188,13 @@ export function resumeInfo(s: SessionRecord): ResumeInfo {
   }
 
   if (s.source === "claude") {
-    return {
-      command: `claude --resume ${s.id}`,
-      pathMode: dir ? "recommended" : "unknown",
-    };
+    if (dir) {
+      return {
+        command: `cd ${shellQuote(dir)} && claude --resume ${s.id}`,
+        pathMode: "required",
+      };
+    }
+    return { command: `claude --resume ${s.id}`, pathMode: "unknown" };
   }
 
   return {

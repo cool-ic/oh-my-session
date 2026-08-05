@@ -107,7 +107,7 @@ gutter 列画 │；表头行接缝用 ┬
 | **ID** | 完整 session id |
 | **Resume command (yy copy)** | `resumeInfo().command`（可折行；`yy` = copy resume command to clipboard） |
 
-**禁止**详情里写 Note / 路径语义说教（如 “must cd here first”）——命令本身已含 `cd`（Qoder）或仅需 ID（Grok/Claude）。  
+**禁止**详情里写 Note / 路径语义说教（如 “must cd here first”）——命令本身已含 `cd`（Qoder / Claude）或仅需 ID（Grok）。  
 也不展示 Store / Created / Branch 等噪声字段。
 
 框线：`┌─ 详情 ─┐` / `│` / `└─┘`。Rename（`i`）只在表格 TITLE 列。
@@ -134,7 +134,7 @@ gutter 列画 │；表头行接缝用 ┬
 |--------|---------|----------|
 | qoder | `cd <dir> && qodercli -r <id>` | **required** |
 | grok | `grok --resume <id>` | recommended（ID 全局；标题/-c 认当前目录） |
-| claude | 建议 `cd && claude --resume` | recommended |
+| claude | `cd <dir> && claude --resume <id>` | **required** |
 
 ---
 
